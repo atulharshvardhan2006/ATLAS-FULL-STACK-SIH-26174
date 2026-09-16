@@ -36,12 +36,12 @@ A.T.L.A.S operates on a split Edge-Cloud architecture optimized for extreme low-
 ```mermaid
 graph TD
     %% Hardware Level
-    subgraph Edge Hardware
+    subgraph Edge_Hardware [Edge Hardware]
         C1[Optical Camera 1] -->|Video Feed| Cap[Capture Node]
     end
 
     %% AI Pipeline
-    subgraph AI Vision Pipeline
+    subgraph AI_Vision_Pipeline [AI Vision Pipeline]
         Cap -->|High FPS Frames| Y[YOLOv8 Engine]
         Cap -->|RGB Frames| M[MediaPipe Hand Landmarker]
         Y -->|BBox / Classes| Tracker[SORT / Object Tracker]
@@ -50,7 +50,7 @@ graph TD
     end
 
     %% Core Logic
-    subgraph FSM Core Engine
+    subgraph FSM_Core_Engine [FSM Core Engine]
         HOI --> FSM[Finite State Machine]
         Config[(Procedure JSON)] --> FSM
         FSM -->|Compare| Dev[Deviation Detector]
@@ -58,16 +58,16 @@ graph TD
     end
 
     %% Frontend
-    subgraph Telemetry Dashboard (React)
+    subgraph Telemetry_Dashboard [Telemetry Dashboard - React]
         FSM -->|WebSockets| WS[Telemetry Router]
         WS -->|ProtoBuf / JSON| UI[React HUD Matrix]
         WS -->|MJPEG Stream| Video[Live Camera Overlay]
     end
 
-    style Edge Hardware fill:#1e1e24,stroke:#00D8FF,stroke-width:2px,color:#fff
-    style AI Vision Pipeline fill:#16213e,stroke:#9333EA,stroke-width:2px,color:#fff
-    style FSM Core Engine fill:#0f3460,stroke:#e94560,stroke-width:2px,color:#fff
-    style Telemetry Dashboard (React) fill:#1f2937,stroke:#4CAF50,stroke-width:2px,color:#fff
+    style Edge_Hardware fill:#1e1e24,stroke:#00D8FF,stroke-width:2px,color:#fff
+    style AI_Vision_Pipeline fill:#16213e,stroke:#9333EA,stroke-width:2px,color:#fff
+    style FSM_Core_Engine fill:#0f3460,stroke:#e94560,stroke-width:2px,color:#fff
+    style Telemetry_Dashboard fill:#1f2937,stroke:#4CAF50,stroke-width:2px,color:#fff
 ```
 
 ---
