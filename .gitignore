@@ -1,0 +1,31 @@
+node_modules/
+__pycache__/
+*.pyc
+.env
+.DS_Store
+*.mp4
+bas-apg-backend/data/recordings/snap-check-32.mp4
+bas-apg-backend/data/recordings/snap-check-33.mp4
+bas-apg-backend/data/recordings/snap-check-36.mp4
+bas-apg-backend/data/recordings/snap-check-37.mp4
+bas-apg-backend/data/recordings/snap-check-*.mp4
+experiment_videos/*.mp4
+
+# Exclude heavy model weights
+*.pt
+
+# Exclude generated datasets and images
+bas-apg-backend/data/augmented/
+bas-apg-backend/data/dataset/
+bas-apg-backend/data/raw/
+bas-apg-backend/runs/
+*_capture_*.jpg
+debug_*.jpg
+
+# Exclude experiment logs
+experiment_logs/
+captured_frames/
+bas-apg-backend/data/experiment_log.txt
+
+# Exclude macOS apps
+*.app/

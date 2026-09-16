@@ -1,0 +1,38 @@
+# =============================================================================
+# BAS AI Procedure Guardian — Dependencies
+# Backend + ML only (no frontend, no database)
+# Target: MacBook M4 Air (16GB), Python 3.10 (conda), 100% Offline
+# =============================================================================
+
+# ---- Backend Framework ----
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+websockets>=13.0
+
+# ---- AI / Computer Vision ----
+ultralytics>=8.3.0          # YOLOv8 (includes PyTorch)
+mediapipe>=0.10.0           # Hand landmark detection (legacy API)
+opencv-python               # Video capture, image processing
+numpy                       # Array math (used by all CV libs)
+
+# ---- Text-to-Speech ----
+pyttsx3                     # Offline TTS (macOS NSSpeechSynthesizer)
+
+# ---- Data Validation & Config ----
+pydantic
+pydantic-settings
+
+# ---- Data Augmentation (training only) ----
+albumentations              # Microgravity rotation augmentation
+
+# ---- Logging ----
+structlog
+
+protobuf
+grpcio-tools
+transformers
+torch
+accelerate
+
+# ---- HOI Tracker (Pearson correlation) ----
+scipy==1.11.3

@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-brand-bg text-brand-text font-mono antialiased overflow-x-hidden;
+  }
+}
+
+/* Custom Scrollbar for global dark aesthetic */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-brand-bg;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-brand-borderDark;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-brand-textMuted;
+}

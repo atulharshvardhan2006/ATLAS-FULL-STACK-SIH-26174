@@ -1,0 +1,97 @@
+{
+  "id": "red_yellow_box_v1",
+  "name": "Red/Yellow Box Sample Transfer",
+  "version": "1.0-SIH",
+  "description": "BAS experiment: transfer sample between colored containers. Demo flow choreographed for the user.",
+  "objects": ["red_box", "yellow_box", "hole_puncher", "scissors", "hand", "procedure"],
+  "steps": [
+    {
+      "step_id": "S01",
+      "action": "DETECT",
+      "object": "hand",
+      "description": "Detect Hand.",
+      "timeout_seconds": 60,
+      "next_step": "S02",
+      "required_evidence": [],
+      "confidence_threshold": 0.50,
+      "recovery_options": []
+    },
+    {
+      "step_id": "S02",
+      "action": "DETECT",
+      "object": "red_box",
+      "description": "Detect Red Box.",
+      "timeout_seconds": 60,
+      "next_step": "S03",
+      "required_evidence": [],
+      "confidence_threshold": 0.50,
+      "recovery_options": []
+    },
+    {
+      "step_id": "S03",
+      "action": "OPEN",
+      "object": "open_red_box",
+      "description": "Open Red Box.",
+      "timeout_seconds": 60,
+      "next_step": "S04",
+      "required_evidence": [],
+      "confidence_threshold": 0.50,
+      "recovery_options": []
+    },
+    {
+      "step_id": "S04",
+      "action": "DETECT",
+      "object": "hole_puncher",
+      "description": "Detect Hole Puncher.",
+      "timeout_seconds": 60,
+      "next_step": "S05",
+      "required_evidence": [],
+      "confidence_threshold": 0.50,
+      "recovery_options": []
+    },
+    {
+      "step_id": "S05",
+      "action": "DETECT",
+      "object": "yellow_box",
+      "description": "Detect Yellow Box.",
+      "timeout_seconds": 60,
+      "next_step": "S06",
+      "required_evidence": [],
+      "confidence_threshold": 0.50,
+      "recovery_options": []
+    },
+    {
+      "step_id": "S06",
+      "action": "OPEN",
+      "object": "open_yellow_box",
+      "description": "Open Yellow Box.",
+      "timeout_seconds": 60,
+      "next_step": "S07",
+      "required_evidence": [],
+      "confidence_threshold": 0.50,
+      "recovery_options": []
+    },
+    {
+      "step_id": "S07",
+      "action": "DETECT",
+      "object": "scissors",
+      "description": "Detect Scissors.",
+      "timeout_seconds": 60,
+      "next_step": "S08",
+      "required_evidence": [],
+      "confidence_threshold": 0.50,
+      "recovery_options": []
+    },
+    {
+      "step_id": "S08",
+      "action": "COMPLETE",
+      "object": "procedure",
+      "description": "Procedure Complete.",
+      "timeout_seconds": 60,
+      "next_step": null,
+      "required_evidence": [],
+      "confidence_threshold": 0.50,
+      "recovery_options": []
+    }
+  ]
+}

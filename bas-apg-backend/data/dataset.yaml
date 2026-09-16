@@ -1,0 +1,12 @@
+path: data/dataset
+train: images/train
+val: images/val
+test: images/test
+
+names:
+  0: red_box
+  1: punch_hole
+  2: yellow_box
+  3: scissors
+  4: open_red_box
+  5: open_yellow_box

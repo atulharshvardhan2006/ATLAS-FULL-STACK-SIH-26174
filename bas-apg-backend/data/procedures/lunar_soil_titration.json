@@ -1,0 +1,119 @@
+{
+  "id": "lunar_soil_titration_v1",
+  "name": "Lunar Regolith Sample Titration Analysis",
+  "version": "1.0",
+  "description": "ISRO BAS procedure: Perform acid-base titration on lunar regolith simulant to determine mineral oxide composition. Strict containment protocol — HCl is a Class 2 hazardous reagent.",
+  "objects": ["main_box", "red_box", "yellow_box", "sample", "tweezers"],
+  "steps": [
+    {
+      "step_id": "S01",
+      "action": "PICK",
+      "object": "main_box",
+      "description": "Retrieve the sealed regolith containment unit from the storage rack.",
+      "timeout_seconds": 30,
+      "next_step": "S02",
+      "required_evidence": ["hand_contact", "object_movement"],
+      "confidence_threshold": 0.85,
+      "recovery_options": ["voice_prompt", "highlight_object"]
+    },
+    {
+      "step_id": "S02",
+      "action": "OPEN",
+      "object": "main_box",
+      "description": "Unseal the containment unit lid under the fume hood extraction zone.",
+      "timeout_seconds": 45,
+      "next_step": "S03",
+      "required_evidence": ["hand_interaction", "lid_state_change"],
+      "confidence_threshold": 0.80,
+      "recovery_options": ["voice_prompt"]
+    },
+    {
+      "step_id": "S03",
+      "action": "PICK",
+      "object": "tweezers",
+      "description": "Acquire sterilized titanium tweezers from the instrument tray.",
+      "timeout_seconds": 20,
+      "next_step": "S04",
+      "required_evidence": ["hand_contact", "object_movement"],
+      "confidence_threshold": 0.85,
+      "recovery_options": ["voice_prompt", "highlight_object"]
+    },
+    {
+      "step_id": "S04",
+      "action": "PICK",
+      "object": "sample",
+      "description": "Using tweezers, extract exactly 2g of regolith simulant from the containment unit.",
+      "timeout_seconds": 60,
+      "next_step": "S05",
+      "required_evidence": ["hand_contact", "object_movement", "tool_mediated"],
+      "confidence_threshold": 0.80,
+      "recovery_options": ["voice_prompt", "check_dropped"]
+    },
+    {
+      "step_id": "S05",
+      "action": "TRANSFER",
+      "object": "sample",
+      "description": "Transfer the regolith sample into the red titration beaker. Do NOT allow contact with bare skin.",
+      "timeout_seconds": 45,
+      "next_step": "S06",
+      "required_evidence": ["continuous_tracking", "spatial_translation"],
+      "confidence_threshold": 0.75,
+      "recovery_options": ["voice_prompt", "check_dropped", "containment_alert"]
+    },
+    {
+      "step_id": "S06",
+      "action": "CLOSE",
+      "object": "main_box",
+      "description": "Re-seal the regolith containment unit immediately after sample extraction.",
+      "timeout_seconds": 30,
+      "next_step": "S07",
+      "required_evidence": ["hand_interaction", "lid_state_change"],
+      "confidence_threshold": 0.80,
+      "recovery_options": ["voice_prompt", "containment_alert"]
+    },
+    {
+      "step_id": "S07",
+      "action": "OPEN",
+      "object": "yellow_box",
+      "description": "Open the HCl reagent container (HAZARDOUS — Class 2 corrosive). Verify fume hood airflow is active.",
+      "timeout_seconds": 30,
+      "next_step": "S08",
+      "required_evidence": ["hand_interaction", "lid_state_change"],
+      "confidence_threshold": 0.85,
+      "recovery_options": ["voice_prompt", "containment_alert", "abort_procedure"]
+    },
+    {
+      "step_id": "S08",
+      "action": "TRANSFER",
+      "object": "yellow_box",
+      "description": "Add 10mL of 0.1M HCl to the titration beaker containing the regolith sample. Stir for two minutes.",
+      "timeout_seconds": 180,
+      "next_step": "S09",
+      "required_evidence": ["continuous_tracking", "spatial_translation", "timed_action"],
+      "confidence_threshold": 0.75,
+      "recovery_options": ["voice_prompt", "timer_display"]
+    },
+    {
+      "step_id": "S09",
+      "action": "CLOSE",
+      "object": "yellow_box",
+      "description": "Seal the HCl reagent container immediately. Verify containment indicator shows LOCKED.",
+      "timeout_seconds": 20,
+      "next_step": "S10",
+      "required_evidence": ["hand_interaction", "lid_state_change"],
+      "confidence_threshold": 0.90,
+      "recovery_options": ["voice_prompt", "containment_alert", "abort_procedure"]
+    },
+    {
+      "step_id": "S10",
+      "action": "CLOSE",
+      "object": "red_box",
+      "description": "Seal the titration beaker and place it in the analysis queue. Experiment complete.",
+      "timeout_seconds": 30,
+      "next_step": null,
+      "required_evidence": ["hand_interaction"],
+      "confidence_threshold": 0.80,
+      "recovery_options": ["voice_prompt"]
+    }
+  ]
+}
