@@ -1,114 +1,138 @@
 <div align="center">
-  <img src="https://img.shields.io/badge/SIH_2026-Project-blue?style=for-the-badge" alt="SIH Project">
   
-  <br />
-  <br />
+  <img src="https://readme-typing-svg.demolab.com?font=Orbitron&weight=800&size=40&pause=1000&color=00D8FF&center=true&vCenter=true&width=800&height=80&lines=A.T.L.A.S;Automated+Telemetry+%26+Logistics;Smart+India+Hackathon+2026;Zero-Error+Mission+Auditing" alt="Typing SVG" />
 
-  # 🚀 A.T.L.A.S (Automated Telemetry & Logistics Analysis System)
+  <img src="https://img.shields.io/badge/SIH_2026-Project-00D8FF?style=for-the-badge&logo=rocket&logoColor=white" alt="SIH Project">
+  <img src="https://img.shields.io/badge/Status-Flight_Ready-4CAF50?style=for-the-badge" alt="Status">
+  <img src="https://img.shields.io/badge/Latency-<40ms-FF2A2A?style=for-the-badge" alt="Latency">
   
-  **An Advanced Computer Vision Platform for Automated Procedure Tracking and Mission Auditing**
+  <br />
+  <br />
 
   <p align="center">
-    <a href="#overview">Overview</a> •
-    <a href="#key-features">Key Features</a> •
-    <a href="#tech-stack">Tech Stack</a> •
-    <a href="#system-architecture">System Architecture</a> •
-    <a href="#getting-started">Getting Started</a>
+    <a href="#-overview">Overview</a> •
+    <a href="#-frontend-calibration--hud-features">Frontend Features</a> •
+    <a href="#-tech-stack">Tech Stack</a> •
+    <a href="#-offline-deployment-guide">Offline Deployment</a>
   </p>
 </div>
 
 <br/>
 
 ## 🌟 Overview
-**A.T.L.A.S** is a highly robust, full-stack, AI-driven procedure monitoring system built for the Smart India Hackathon (SIH). It ensures precision in complex tasks, such as scientific experiments (e.g., lunar soil titration, sample transfers), by acting as an intelligent auditing and telemetry agent.
+**A.T.L.A.S** is a highly robust, full-stack, AI-driven procedure monitoring system built for the **Smart India Hackathon (SIH)**. It ensures precision in complex tasks, such as scientific experiments (e.g., lunar soil titration, sample transfers), by acting as an intelligent auditing and telemetry agent.
 
 Powered by real-time computer vision, A.T.L.A.S continuously tracks hand movements, objects, and kinematic states to guarantee that standard operating procedures (SOPs) are strictly followed. Deviations are instantly flagged visually and with voice alerts, ensuring zero-error mission execution.
 
 ---
 
-## ✨ Key Features
+## 🎛️ Frontend Calibration & HUD Features
 
-- 👁️ **Real-time Object & Pose Tracking**: Employs cutting-edge `YOLOv8` and `MediaPipe` models to accurately track objects, hands, and human interaction simultaneously.
-- ⚙️ **Intelligent Finite State Machine (FSM)**: Enforces procedural workflows and tracks progress dynamically through complex multi-step experiments.
-- 📐 **Kinematic Analysis & PnP Solving**: Measures precise spatial deviations and angles in 3D space, preventing critical handling errors.
-- 🎙️ **Voice Alerts & Visual HUD**: Provides instant feedback during procedure deviations (e.g., "Warning: Hand detected without gloves" or "Incorrect sequence!").
-- 📊 **Live Telemetry & Auditing**: A beautiful React frontend providing real-time data streaming, confidence scores, and overdue step alerts for remote monitoring.
+The A.T.L.A.S frontend is not just a dashboard; it is a **Mission Control HUD** built with React and TailwindCSS. Before any mission begins, the system enforces a strict **Pre-Flight Hardware Lock** and calibration sequence.
+
+### 🔬 Pre-Flight Setup & Calibration
+- **Optical Intrinsic Matrix:** Live verification of `camera_profile.npz` (Focal Length & Distortion Centers `fx`, `fy`, `cx`).
+- **Environmental Calibration Radar:** 
+  - Real-time **Ambient Venue Lux** tracking with **Auto-CLAHE** priming.
+  - **Optical Glare Saturation** monitoring via the proprietary **Glare Guardian** system.
+- **PID Thermodynamic Baseline:** Live Edge Node Idle Temp and stable FPS tracking.
+- **Mass Manifest Lock (FOD):** AI Vision must detect and verify all physical payload items (e.g., *Lunar Regolith Sample, Titration Flask*) before the State Machine unlocks the mission sequence.
+
+### 🛰️ Live Mission HUD
+- **Real-time MJPEG Decoding:** High-FPS, ultra-low latency optical stream parsing directly from the edge node.
+- **AI Confidence Mocking:** Live telemetry charts reflecting the YOLOv8 and MediaPipe structural confidence metrics.
+- **OVERDUE UI Matrix:** Dynamic timers and SLA alerts that warn the operator if a specific procedural step is taking longer than the standard baseline.
+- **WebSocket Synchronization:** Instant state reconciliation between the Python backend FSM and the React UI.
+
+---
+
+## ✨ Backend & AI Capabilities
+
+- 👁️ **Multi-Model Tracking**: Fuses `YOLOv8` object detection with `MediaPipe` 3D skeletal landmarker.
+- ⚙️ **Finite State Machine (FSM)**: Enforces procedural workflows defined in modular `JSON` configurations.
+- 📐 **Kinematic PnP Solving**: Measures precise spatial deviations and interaction angles in 3D space.
+- 🎙️ **Voice Alerts**: Delivers instant auditory feedback (e.g., *"Warning: Hand detected without gloves"*).
 
 ---
 
 ## 🛠️ Tech Stack
 
-### 🧠 Backend (Edge Engine)
-![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54) ![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi) ![OpenCV](https://img.shields.io/badge/opencv-%23white.svg?style=for-the-badge&logo=opencv&logoColor=white) 
-- **Core Framework**: Python, FastAPI
-- **Computer Vision**: OpenCV, Ultralytics (YOLOv8), MediaPipe Hand Landmarker
-- **Algorithms**: ORB feature matching, Kalman Filters, Perspective-n-Point (PnP) Solver
-- **Data & Telemetry**: SQLite, Protocol Buffers (gRPC/Proto)
+<div align="center">
+  <a href="https://skillicons.dev">
+    <img src="https://skillicons.dev/icons?i=python,fastapi,react,ts,tailwind,opencv,sqlite,vite&theme=dark" />
+  </a>
+</div>
 
-### 💻 Frontend (Telemetry Dashboard)
-![React](https://img.shields.io/badge/react-%2320232a.svg?style=for-the-badge&logo=react&logoColor=%2361DAFB) ![TypeScript](https://img.shields.io/badge/typescript-%23007ACC.svg?style=for-the-badge&logo=typescript&logoColor=white) ![TailwindCSS](https://img.shields.io/badge/tailwindcss-%2338B2AC.svg?style=for-the-badge&logo=tailwind-css&logoColor=white)
-- **Core Framework**: React (Vite)
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS with custom premium typography (JetBrains Mono, Orbitron)
-- **Features**: Live MJPEG video stream decoding, HUD overlays, WebSocket-ready states
+<br/>
 
 ---
 
-## 🏗️ System Architecture
+## 🚀 Offline Deployment Guide
 
-A.T.L.A.S operates on a split Edge-Cloud architecture optimized for low-latency visual tracking:
+For SIH presentations, reliable offline capability is critical. A.T.L.A.S is designed to run entirely locally without external API dependencies. All base ML models (`yolov8n.pt` and `hand_landmarker.task`) are included in this repository.
 
-1. **Hardware / Camera Interface**: Captures analog and digital webcam feeds at high frame rates.
-2. **Vision Pipeline (Backend)**: Analyzes frames in parallel. Extracts bounding boxes (YOLO), feature descriptors (ORB), and skeletal nodes (MediaPipe).
-3. **Core Engine**: The `procedure_fsm` cross-references live data with expected SOP configurations defined in `JSON` formats. Deviations are triggered through the `deviation_detector`.
-4. **Dashboard (Frontend)**: Consumes backend streams and visualizes the exact mission state and telemetry for mission control operators.
+<details>
+<summary><b>1. Environment Preparation (Click to Expand)</b></summary>
 
----
+Ensure you have the following installed on your edge node or presentation machine:
+- **Python 3.10+**
+- **Node.js 18+** & npm
+- A connected USB Webcam or integrated camera.
+</details>
 
-## 🚀 Getting Started (Deployment)
+<details>
+<summary><b>2. Backend (Edge Node) Offline Setup</b></summary>
 
-These instructions will get your copy of the project up and running on your local edge node or laptop.
+The backend powers the heavy lifting (YOLO, MediaPipe, FSM, and FastAPI WebSocket server).
 
-### 1. Prerequisites
-Ensure you have the following installed:
-- Python 3.10+
-- Node.js 18+ & npm
-- Git
-
-### 2. Backend Setup
 ```bash
 # Navigate to the backend directory
 cd bas-apg-backend
 
-# Install Python dependencies
+# Create a virtual environment and install dependencies
+python3 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
 
 # Start the vision engine and telemetry server
+# Note: Models are already bundled locally! No downloads required.
 ./launch_edge_node.sh
-# OR run the python script directly
-python app/main.py
 ```
+*(The backend runs on `localhost:8000`)*
+</details>
 
-### 3. Frontend Setup
+<details>
+<summary><b>3. Frontend (Telemetry HUD) Offline Setup</b></summary>
+
+The frontend operates locally using Vite and connects to the backend WebSockets.
+
 ```bash
 # Navigate to the frontend directory
 cd bas-apg-frontend
 
-# Install Node dependencies
+# Install Node dependencies (Requires internet only for the first installation)
 npm install
 
-# Start the development server
+# Start the Vite development server
 npm run dev
 ```
+*(The frontend runs on `localhost:5173`)*
+</details>
 
-### 4. Running the Complete Demo
-We've included an automated launch script that fires up both the engine and the UI concurrently for easy demonstration:
+<details>
+<summary><b>4. One-Click Launch (macOS/Linux)</b></summary>
+
+For rapid presentation recovery, use the bundled concurrent startup script:
+
 ```bash
+chmod +x launch_demo.sh
 ./launch_demo.sh
 ```
+This script will instantly spawn both the backend telemetry server and the React Mission Control HUD.
+</details>
 
 ---
 
 <div align="center">
-  <i>Developed with ❤️ for the Smart India Hackathon.</i>
+  <img src="https://capsule-render.vercel.app/api?type=waving&color=00D8FF&height=120&section=footer"/>
 </div>
