@@ -216,6 +216,23 @@ chmod +x launch_demo.sh
 
 ---
 
+## 📸 Working Images / Dashboards
+
+Below are live captures of the A.T.L.A.S system in action across the different operational dashboards:
+
+### Setup & Diagnostics
+![Setup Dashboard](assets/screenshots/screenshot_1.png)
+
+### Station Telemetry
+![Station Dashboard](assets/screenshots/screenshot_2.png)
+
+### Mission Control & Live Feed
+![Mission Control 1](assets/screenshots/screenshot_3.png)
+![Mission Control 2](assets/screenshots/screenshot_4.png)
+![System Locked](assets/screenshots/screenshot_5.png)
+
+---
+
 <div align="center">
   <img src="https://capsule-render.vercel.app/api?type=waving&color=00D8FF&height=120&section=footer"/>
 </div>
