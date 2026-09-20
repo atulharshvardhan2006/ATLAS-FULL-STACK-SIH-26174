@@ -220,10 +220,10 @@ chmod +x launch_demo.sh
 
 Below are live captures of the A.T.L.A.S system in action across the different operational dashboards:
 
-### Setup & Diagnostics
+### Security and Biometrics
 ![Setup Dashboard](assets/screenshots/screenshot_1.png)
 
-### Station Telemetry
+### Protocol
 ![Station Dashboard](assets/screenshots/screenshot_2.png)
 
 ### Mission Control & Live Feed
