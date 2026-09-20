@@ -1159,7 +1159,7 @@ def run_ai_engine():
             if prev_idx >= 0 and prev_idx < len(fsm.steps):
                 completed_step_def = fsm.steps[prev_idx]
                 if completed_step_def.object == "procedure":
-                    speak("Experimental procedure completed successfully and all steps verified.")
+                    speak("All steps verified. Experimental procedure completed.")
                 else:
                     obj_name_clean = completed_step_def.object.replace('open_', '').replace('_', ' ')
                     speak(f"{obj_name_clean} detection complete.")
