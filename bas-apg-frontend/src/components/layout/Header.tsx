@@ -13,6 +13,8 @@ export const Header: React.FC = () => {
         return 'Mission';
       case '/audit':
         return 'Audit';
+      case '/station':
+        return 'Station';
       default:
         return 'Overview';
     }

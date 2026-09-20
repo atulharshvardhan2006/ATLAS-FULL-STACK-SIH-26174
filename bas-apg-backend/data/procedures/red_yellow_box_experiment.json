@@ -5,17 +5,7 @@
   "description": "BAS experiment: transfer sample between colored containers. Demo flow choreographed for the user.",
   "objects": ["red_box", "yellow_box", "hole_puncher", "scissors", "hand", "procedure"],
   "steps": [
-    {
-      "step_id": "S01",
-      "action": "DETECT",
-      "object": "hand",
-      "description": "Detect Hand.",
-      "timeout_seconds": 60,
-      "next_step": "S02",
-      "required_evidence": [],
-      "confidence_threshold": 0.50,
-      "recovery_options": []
-    },
+
     {
       "step_id": "S02",
       "action": "DETECT",
@@ -68,7 +58,7 @@
       "timeout_seconds": 60,
       "next_step": "S07",
       "required_evidence": [],
-      "confidence_threshold": 0.50,
+      "confidence_threshold": 0.30,
       "recovery_options": []
     },
     {

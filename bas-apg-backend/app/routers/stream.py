@@ -76,6 +76,7 @@ async def telemetry_stream(websocket: WebSocket, session_id: str):
             payload = {
                 "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
                 "system_status": S.system_status,
+                "auth_status": S.auth_status,
                 "isp_settling": S.isp_settling,
                 "isp_remaining_s": round(S.isp_remaining_s, 1),
                 "standby_mode": S.standby_mode,
@@ -146,3 +147,9 @@ def wizard_override():
     """Wizard of Oz override to force the FSM to advance to the next step."""
     MissionState.fsm_wizard_override = True
     return {"status": "ok", "message": "Wizard override triggered"}
+
+@router.post("/api/auth/start_scan")
+def start_auth_scan():
+    """Trigger the backend to start face recognition."""
+    MissionState.auth_status = "SCANNING"
+    return {"status": "ok", "message": "Scanning initiated"}

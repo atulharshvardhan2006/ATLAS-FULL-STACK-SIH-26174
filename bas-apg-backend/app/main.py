@@ -1,13 +1,13 @@
 import threading
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import stream, session
+from app.routers import stream, session, object_registry, procedure_builder
 
 app = FastAPI(title="BAS-APG Telemetry API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -15,6 +15,8 @@ app.add_middleware(
 
 app.include_router(stream.router)
 app.include_router(session.router)
+app.include_router(object_registry.router)
+app.include_router(procedure_builder.router)
 
 
 @app.on_event("startup")
@@ -75,3 +77,20 @@ async def end_demo():
     MissionState.demo_started = False
     MissionState.active_session_id = None
     return {"status": "ended"}
+
+
+@app.post("/api/fsm/set_target")
+async def set_target(object: str):
+    from app.core.state import MissionState
+    MissionState.frontend_target = object
+    return {"status": "ok", "target": object}
+
+from pydantic import BaseModel
+class SpeakRequest(BaseModel):
+    text: str
+
+@app.post("/api/speak")
+async def trigger_speak(req: SpeakRequest):
+    from app.core.engine import speak
+    speak(req.text)
+    return {"status": "spoken"}

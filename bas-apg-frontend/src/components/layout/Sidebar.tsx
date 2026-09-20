@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { Settings, Target, FileText, Lock } from 'lucide-react';
+import { Settings, Target, FileText, Lock, Gauge, Camera } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { useMissionContext } from '../../context/MissionContext';
@@ -20,6 +20,7 @@ export const Sidebar: React.FC = () => {
       locked: !isMissionUnlocked
     },
     { path: '/audit', label: 'Audit Log', icon: <FileText size={20} /> },
+    { path: '/station', label: 'Station', icon: <Gauge size={20} /> },
   ];
 
   const sidebarVariants = {

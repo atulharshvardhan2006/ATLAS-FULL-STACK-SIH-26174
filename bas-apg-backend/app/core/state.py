@@ -13,6 +13,7 @@ class MissionState:
     active_session_id: Optional[str] = None
     demo_started: bool = False
     reset_fsm_flag: bool = False
+    auth_status: str = "LOCKED"  # LOCKED, SCANNING, GRANTED, DENIED, SAFETY_HAND, SAFETY_GLOVES, SAFETY_GLASSES
     
     
     latest_frame: Optional[np.ndarray] = None
@@ -52,6 +53,10 @@ class MissionState:
     fsm_expected_action: str = ""
     fsm_expected_object: str = ""
     fsm_wizard_override: bool = False
+    
+    # Dynamic experiment selection
+    selected_procedure: str = "data/procedures/red_yellow_box_experiment.json"
+    frontend_target: Optional[str] = None
     
     
     z_offset_mm: float = 0.0

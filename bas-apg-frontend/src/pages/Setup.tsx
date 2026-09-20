@@ -20,6 +20,9 @@ export const Setup: React.FC = () => {
   const [glare, setGlare] = useState(0.85);
   const [tempData, setTempData] = useState<number[]>(Array(20).fill(30.0));
   
+  const [procedures, setProcedures] = useState<any[]>([]);
+  const [selectedProcedure, setSelectedProcedure] = useState<string>('');
+  
   const [manifest, setManifest] = useState<ManifestItem[]>([
     { id: '1', name: 'LUNAR REGOLITH SAMPLE (14g)', verified: false, yolo_class: 'sample' },
     { id: '2', name: 'TITRATION FLASK A', verified: false, yolo_class: 'main_box' },
@@ -28,6 +31,58 @@ export const Setup: React.FC = () => {
   ]);
 
   const allVerified = manifest.every(item => item.verified) && opticalVerified;
+
+  useEffect(() => {
+    // Fetch available procedures
+    fetch('http://localhost:8000/api/procedures/list')
+      .then(res => res.json())
+      .then(data => {
+        setProcedures(data.procedures || []);
+        const active = data.procedures.find((p: any) => p.selected);
+        if (active) {
+          setSelectedProcedure(active.filename);
+          updateManifestForProcedure(active, data.procedures);
+        }
+      })
+      .catch(err => console.error("Failed to load procedures", err));
+  }, []);
+
+  const updateManifestForProcedure = (proc: any, allProcs: any[]) => {
+    if (proc && proc.filename !== 'red_yellow_box_experiment.json') {
+      const newManifest = proc.objects
+        .filter((o: string) => o !== 'procedure' && o !== 'hand')
+        .map((obj: string, i: number) => ({
+          id: String(i),
+          name: obj.toUpperCase().replace(/_/g, ' '),
+          verified: false,
+          yolo_class: obj
+        }));
+      setManifest(newManifest);
+    } else {
+      // Default manifest
+      setManifest([
+        { id: '1', name: 'LUNAR REGOLITH SAMPLE (14g)', verified: false, yolo_class: 'sample' },
+        { id: '2', name: 'TITRATION FLASK A', verified: false, yolo_class: 'main_box' },
+        { id: '3', name: 'REAGENT HCL (0.1M)', verified: false, yolo_class: 'red_box' },
+        { id: '4', name: 'PIPETTE TOOL', verified: false, yolo_class: 'tweezers' },
+      ]);
+    }
+  };
+
+  const handleProcedureChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const filename = e.target.value;
+    setSelectedProcedure(filename);
+    fetch('http://localhost:8000/api/procedures/select', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ procedure_file: filename })
+    })
+    .then(res => res.json())
+    .then(() => {
+      const proc = procedures.find(p => p.filename === filename);
+      updateManifestForProcedure(proc, procedures);
+    });
+  };
 
   useEffect(() => {
     const ws = new WebSocket('ws://localhost:8000/ws/telemetry/demo-session');
@@ -73,7 +128,8 @@ export const Setup: React.FC = () => {
   }, []);
 
   const handleStartSession = () => {
-    if (allVerified) {
+    // If manifest is empty (no objects required), just start
+    if (allVerified || manifest.length === 0) {
       unlockMission();
       navigate('/mission');
     }
@@ -81,9 +137,26 @@ export const Setup: React.FC = () => {
 
   return (
     <div className="max-w-6xl mx-auto font-mono text-brand-text mb-12">
-      <PageHeader title="Cleanroom Diagnostics" subtitle="PRE-FLIGHT HARDWARE LOCK" />
+      <div className="flex justify-between items-end">
+        <PageHeader title="Cleanroom Diagnostics" subtitle="PRE-FLIGHT HARDWARE LOCK" />
+        
+        <div className="mb-8 w-96">
+          <label className="block text-xs text-brand-textMuted uppercase mb-2">Select Mission Protocol</label>
+          <select 
+            value={selectedProcedure} 
+            onChange={handleProcedureChange}
+            className="w-full bg-brand-panel border border-brand-border text-brand-text p-2 text-sm focus:outline-none focus:border-brand-accent"
+          >
+            {procedures.map(p => (
+              <option key={p.filename} value={p.filename}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
       
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start mt-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start mt-2">
         
         {/* LEFT COLUMN: Hardware Diagnostics */}
         <div className="lg:col-span-7 flex flex-col gap-6">
@@ -112,7 +185,7 @@ export const Setup: React.FC = () => {
             <div className="flex justify-between items-end mb-4">
               <div>
                 <div className="text-xs text-brand-textMuted uppercase mb-1">EDGE NODE IDLE TEMP / FPS</div>
-                <div className="text-2xl font-bold text-brand-accent">{tempData[tempData.length - 1].toFixed(2)}</div>
+                <div className="text-2xl font-bold text-brand-accent">{tempData[tempData.length - 1]?.toFixed(2)}</div>
               </div>
               <div className="text-right">
                 <div className="text-xs text-brand-textMuted uppercase mb-1">SLEEP PENALTY</div>
@@ -158,6 +231,9 @@ export const Setup: React.FC = () => {
             </div>
             
             <div className="space-y-3">
+              {manifest.length === 0 && (
+                <div className="text-sm text-brand-textMuted italic">No payload verification required for this protocol.</div>
+              )}
               {manifest.map((item) => (
                 <div key={item.id} className="flex items-center justify-between p-3 border border-brand-border bg-brand-panel">
                   <span className={`text-sm ${item.verified ? 'text-brand-text' : 'text-brand-textMuted'}`}>
@@ -174,14 +250,14 @@ export const Setup: React.FC = () => {
           <div className="mt-4">
             <button
               onClick={handleStartSession}
-              disabled={!allVerified}
+              disabled={!allVerified && manifest.length > 0}
               className={`w-full py-5 border text-sm font-bold uppercase tracking-widest transition-all ${
-                allVerified 
+                (allVerified || manifest.length === 0)
                   ? 'border-brand-accent text-brand-bg bg-brand-accent hover:bg-brand-accent/90 cursor-pointer' 
                   : 'border-brand-border text-brand-textMuted bg-transparent cursor-not-allowed'
               }`}
             >
-              {allVerified ? 'UNLOCK MISSION SEQUENCE' : 'SYSTEM LOCKED: AWAITING VERIFICATION'}
+              {(allVerified || manifest.length === 0) ? 'UNLOCK MISSION SEQUENCE' : 'SYSTEM LOCKED: AWAITING VERIFICATION'}
             </button>
           </div>
 

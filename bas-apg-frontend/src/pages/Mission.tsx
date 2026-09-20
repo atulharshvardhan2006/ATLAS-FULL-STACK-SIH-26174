@@ -13,10 +13,13 @@ interface SlowTelemetry {
   aiConfidence: number;
   handVelocity: number;
   pearsonR: number;
-  expectedAction: string;
   expectedObject: string;
   isGrasping: boolean;
   graspedObject: string | null;
+  fsmDeviationDetails: string | null;
+  authStatus: 'LOCKED' | 'SCANNING' | 'PROCESSING' | 'SAFETY_HAND' | 'SAFETY_GLOVES' | 'SAFETY_GLASSES' | 'GRANTED' | 'DENIED';
+  crewSyncState: string;
+  expectedAction: string;
 }
 
 // 1. ThermalTTF (React.memo)
@@ -249,13 +252,15 @@ const CrewSync = memo(({
   expectedAction, 
   expectedObject, 
   isGrasping, 
-  graspedObject 
+  graspedObject,
+  fsmDeviationDetails
 }: { 
   crewSyncState: string, 
   expectedAction: string, 
   expectedObject: string,
   isGrasping: boolean,
-  graspedObject: string | null
+  graspedObject: string | null,
+  fsmDeviationDetails: string | null
 }) => {
   const crewSyncColor = crewSyncState === 'DEVIATION' || crewSyncState === 'FUMBLE ALARM'
     ? 'text-status-red animate-pulse'
@@ -270,6 +275,11 @@ const CrewSync = memo(({
   }
   if (!expectedAction && !expectedObject) {
     displayInstruction = crewSyncState;
+  }
+  if (crewSyncState === 'DEVIATION') {
+    const rawMatch = fsmDeviationDetails?.match(/Detected (.*?) instead of/);
+    const objName = rawMatch ? rawMatch[1].replace(/_/g, ' ') : 'WRONG OBJECT';
+    displayInstruction = `WARNING: ${objName} DETECTED INSTEAD OF ${expectedObject}`.toUpperCase();
   }
 
   return (
@@ -383,23 +393,11 @@ const EdgeCompute = memo(() => {
   );
 });
 
-// 12. MissionSteps (Live Demo Checklist)
-const DEMO_STEPS = [
-  "HAND DETECTED",
-  "RED BOX DETECTED",
-  "OPEN RED BOX",
-  "PUNCH HOLE DETECTED",
-  "YELLOW BOX DETECTED",
-  "OPEN YELLOW BOX",
-  "SCISSORS DETECTED",
-  "PROCEDURE COMPLETE"
-];
-
-const MissionSteps = memo(({ currentStep, overdueSteps }: { currentStep: number, overdueSteps: Set<number> }) => (
+const MissionSteps = memo(({ currentStep, overdueSteps, steps }: { currentStep: number, overdueSteps: Set<number>, steps: string[] }) => (
   <div className="col-span-6">
     <Card title="PROCEDURE CHECKLIST (LIVE AI TRACKING)" className="p-3">
       <div className="text-xs space-y-1.5 font-mono uppercase">
-        {DEMO_STEPS.map((step, idx) => {
+        {steps.map((step, idx) => {
           const isPast = idx < currentStep;
           const isCurrent = idx === currentStep;
           const isOverdue = overdueSteps.has(idx);
@@ -428,22 +426,83 @@ const MissionSteps = memo(({ currentStep, overdueSteps }: { currentStep: number,
 export const Mission: React.FC = () => {
   const [demoStarted, setDemoStarted] = useState(false);
   const [overdueSteps, setOverdueSteps] = useState<Set<number>>(new Set());
+  const [missionSteps, setMissionSteps] = useState<string[]>([]);
   const lastCompletedStepRef = useRef<number>(-1);
 
 
-
+  const [telemetry, setTelemetry] = useState<SlowTelemetry>({
+    pidDelay: 12450,
+    packetFragCurrent: 3,
+    packetFragTotal: 12,
+    cognitiveLoad: 'NOMINAL',
+    crewSyncState: 'IDLE',
+    ttfSeconds: 862,
+    fps: 0,
+    aiConfidence: 0,
+    handVelocity: 0,
+    pearsonR: 0,
+    expectedObject: '',
+    isGrasping: false,
+    graspedObject: null,
+    fsmDeviationDetails: null,
+    authStatus: 'LOCKED',
+    expectedAction: '',
+  });
 
 
   useEffect(() => {
+    // Speak on dashboard load
+    fetch("http://localhost:8000/api/speak", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: "Biometric detection needed." })
+    }).catch(e => console.error("Speak error:", e));
+
+    // Fetch active procedure steps
+    fetch("http://localhost:8000/api/procedures/list")
+      .then(res => res.json())
+      .then(data => {
+        const active = data.procedures.find((p: any) => p.selected);
+        if (active && active.steps) {
+          const stepNames = active.steps.map((s: any) => s.description || "STEP");
+          stepNames.push("PROCEDURE COMPLETE");
+          setMissionSteps(stepNames);
+        } else {
+          setMissionSteps([
+            "RED BOX DETECTED",
+            "OPEN RED BOX",
+            "PUNCH HOLE DETECTED",
+            "YELLOW BOX DETECTED",
+            "OPEN YELLOW BOX",
+            "SCISSORS DETECTED",
+            "PROCEDURE COMPLETE"
+          ]);
+        }
+      })
+      .catch(e => console.error("Failed to fetch procedure:", e));
+  }, []);
+
+  useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
-      if (e.code === "Space" && !demoStarted) {
+      // Ignore shift+space (wizard override)
+      if (e.code === "Space" && !e.shiftKey) {
         e.preventDefault();
-        try {
-          await fetch("http://localhost:8000/start_demo", { method: "POST" });
-          setDemoStarted(true);
-          lastCompletedStepRef.current = -1;
-        } catch (error) {
-          console.error("Failed to start demo:", error);
+        
+        // If locked, spacebar starts the scan
+        if (!demoStarted && telemetry.authStatus === 'LOCKED') {
+          fetch("http://localhost:8000/api/auth/start_scan", { method: "POST" });
+          return;
+        }
+        
+        // If granted, spacebar starts the mission
+        if (!demoStarted && telemetry.authStatus === 'GRANTED') {
+          try {
+            await fetch("http://localhost:8000/start_demo", { method: "POST" });
+            setDemoStarted(true);
+            lastCompletedStepRef.current = -1;
+          } catch (error) {
+            console.error("Failed to start demo:", error);
+          }
         }
       }
     };
@@ -458,24 +517,7 @@ export const Mission: React.FC = () => {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keydown", handleKeyE);
     };
-  }, [demoStarted]);
-
-  const [telemetry, setTelemetry] = useState<SlowTelemetry>({
-    pidDelay: 12450,
-    packetFragCurrent: 3,
-    packetFragTotal: 12,
-    cognitiveLoad: 'NOMINAL',
-    crewSyncState: 'IDLE',
-    ttfSeconds: 862,
-    fps: 0,
-    aiConfidence: 0,
-    handVelocity: 0,
-    pearsonR: 0,
-    expectedAction: '',
-    expectedObject: '',
-    isGrasping: false,
-    graspedObject: null,
-  });
+  }, [demoStarted, telemetry.authStatus]);
 
   // ── WIZARD OF OZ OVERRIDE LISTENER ──
   useEffect(() => {
@@ -499,9 +541,6 @@ export const Mission: React.FC = () => {
           const newSet = new Set(prev);
           if (!newSet.has(telemetry.packetFragCurrent)) {
             newSet.add(telemetry.packetFragCurrent);
-            const stepName = DEMO_STEPS[telemetry.packetFragCurrent];
-            if (stepName) {
-            }
           }
           return newSet;
         });
@@ -524,8 +563,8 @@ export const Mission: React.FC = () => {
           
           if (fsmStep !== undefined && fsmStep > lastCompletedStepRef.current && fsmState === "IN_PROGRESS") {
             lastCompletedStepRef.current = fsmStep;
-            if (fsmStep > 0 && fsmStep <= DEMO_STEPS.length) {
-              const completedStepName = DEMO_STEPS[fsmStep - 1];
+            if (fsmStep > 0 && fsmStep <= missionSteps.length) {
+              const completedStepName = missionSteps[fsmStep - 1];
             }
           }
           if (fsmState === "COMPLETED") {
@@ -567,6 +606,8 @@ export const Mission: React.FC = () => {
             expectedObject: payload.fsm && payload.fsm.expected_object ? payload.fsm.expected_object : prev.expectedObject,
             isGrasping: payload.hoi && payload.hoi.is_grasping !== undefined ? payload.hoi.is_grasping : prev.isGrasping,
             graspedObject: payload.hoi && payload.hoi.grasped_object !== undefined ? payload.hoi.grasped_object : prev.graspedObject,
+            fsmDeviationDetails: payload.fsm && payload.fsm.deviation_details !== undefined ? payload.fsm.deviation_details : prev.fsmDeviationDetails,
+            authStatus: payload.auth_status || prev.authStatus,
           };
         });
       } catch (e) {
@@ -583,13 +624,129 @@ export const Mission: React.FC = () => {
     <div className="max-w-7xl mx-auto font-mono font-bold text-brand-text mb-12 relative h-screen">
       {!demoStarted && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md">
-          <div className="bg-brand-background border border-brand-accent/50 p-10 rounded shadow-2xl text-center flex flex-col items-center">
-            <h2 className="text-3xl font-bold text-brand-accent mb-2">SYSTEM READY</h2>
-            <p className="text-brand-textMuted mb-8 text-sm max-w-md">The ML tracking pipeline is paused. Position the physical objects and ensure the work surface is clear.</p>
-            <div className="animate-pulse bg-brand-accent text-brand-background px-8 py-4 rounded text-xl font-bold uppercase tracking-widest shadow-[0_0_15px_rgba(var(--color-brand-accent),0.5)]">
-              Press [SPACE] to Begin
+          {telemetry.authStatus === 'GRANTED' ? (
+            <div className="absolute inset-0 bg-black/90 flex items-center justify-center">
+              <div className="bg-brand-background border border-status-green/50 p-10 rounded shadow-[0_0_30px_rgba(34,197,94,0.3)] text-center flex flex-col items-center transition-all duration-500">
+                <svg className="w-16 h-16 text-status-green mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <h2 className="text-4xl font-bold text-status-green mb-4 tracking-widest">ACCESS GRANTED</h2>
+                <p className="text-brand-textMuted mb-10 text-lg max-w-lg">Scientist authorization confirmed. The ML tracking pipeline is fully initialized. Position physical objects and clear the work surface.</p>
+                <button 
+                  onClick={async () => {
+                    try {
+                      await fetch("http://localhost:8000/start_demo", { method: "POST" });
+                      setDemoStarted(true);
+                      lastCompletedStepRef.current = -1;
+                    } catch (error) {
+                      console.error("Failed to start demo:", error);
+                    }
+                  }}
+                  className="animate-pulse bg-brand-accent hover:bg-brand-accent/80 text-brand-background px-10 py-5 rounded text-2xl font-bold uppercase tracking-widest shadow-[0_0_20px_rgba(var(--color-brand-accent),0.5)] transition-all cursor-pointer"
+                >
+                  Press [SPACE] to Begin
+                </button>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="absolute inset-0 flex">
+              {/* Overlay elements */}
+              {telemetry.authStatus.startsWith('SAFETY_') ? (
+                /* SAFETY STATE: Split layout with small camera feed */
+                <div className="z-10 absolute inset-0 flex">
+                  {/* Left panel: Security Checklist */}
+                  <div className="w-1/3 min-w-[500px] h-full bg-black/80 border-r border-brand-accent/50 p-12 flex flex-col justify-center shadow-[20px_0_50px_rgba(0,0,0,0.8)]">
+                    <div className="flex items-center mb-12 border-b border-brand-accent/30 pb-6">
+                      <div className="w-4 h-4 bg-brand-accent animate-pulse mr-4 rounded-full"></div>
+                      <div className="text-3xl font-bold text-brand-accent tracking-widest uppercase">SAFETY PROTOCOL</div>
+                    </div>
+                    
+                    <div className="w-full space-y-8 text-left">
+                      <div className={`flex items-center p-6 border rounded-lg transition-all duration-500 ${telemetry.authStatus === 'SAFETY_HAND' ? 'border-brand-accent bg-brand-accent/20 animate-pulse scale-105 shadow-[0_0_15px_rgba(var(--color-brand-accent),0.3)]' : 'border-status-green bg-status-green/10 opacity-70'}`}>
+                        <div className={`w-10 h-10 mr-6 rounded-full flex items-center justify-center flex-shrink-0 ${telemetry.authStatus === 'SAFETY_HAND' ? 'border-2 border-brand-accent' : 'bg-status-green'}`}>
+                          {telemetry.authStatus !== 'SAFETY_HAND' && <svg className="w-6 h-6 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                        </div>
+                        <span className={`text-xl tracking-widest uppercase font-bold ${telemetry.authStatus === 'SAFETY_HAND' ? 'text-brand-accent' : 'text-status-green'}`}>1. BARE HAND SCAN</span>
+                      </div>
+                      
+                      <div className={`flex items-center p-6 border rounded-lg transition-all duration-500 ${telemetry.authStatus === 'SAFETY_GLOVES' ? 'border-brand-accent bg-brand-accent/20 animate-pulse scale-105 shadow-[0_0_15px_rgba(var(--color-brand-accent),0.3)]' : telemetry.authStatus === 'SAFETY_GLASSES' ? 'border-status-green bg-status-green/10 opacity-70' : 'border-brand-textMuted/30 bg-black/40'}`}>
+                        <div className={`w-10 h-10 mr-6 rounded-full flex items-center justify-center flex-shrink-0 ${telemetry.authStatus === 'SAFETY_GLOVES' ? 'border-2 border-brand-accent' : telemetry.authStatus === 'SAFETY_GLASSES' ? 'bg-status-green' : 'border-2 border-brand-textMuted/30'}`}>
+                          {telemetry.authStatus === 'SAFETY_GLASSES' && <svg className="w-6 h-6 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                        </div>
+                        <span className={`text-xl tracking-widest uppercase font-bold ${telemetry.authStatus === 'SAFETY_GLOVES' ? 'text-brand-accent' : telemetry.authStatus === 'SAFETY_GLASSES' ? 'text-status-green' : 'text-brand-textMuted'}`}>2. WHITE GLOVES</span>
+                      </div>
+                      
+                      <div className={`flex items-center p-6 border rounded-lg transition-all duration-500 ${telemetry.authStatus === 'SAFETY_GLASSES' ? 'border-brand-accent bg-brand-accent/20 animate-pulse scale-105 shadow-[0_0_15px_rgba(var(--color-brand-accent),0.3)]' : 'border-brand-textMuted/30 bg-black/40'}`}>
+                        <div className={`w-10 h-10 mr-6 rounded-full flex items-center justify-center flex-shrink-0 ${telemetry.authStatus === 'SAFETY_GLASSES' ? 'border-2 border-brand-accent' : 'border-2 border-brand-textMuted/30'}`}>
+                        </div>
+                        <span className={`text-xl tracking-widest uppercase font-bold ${telemetry.authStatus === 'SAFETY_GLASSES' ? 'text-brand-accent' : 'text-brand-textMuted'}`}>3. EYE PROTECTION</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right panel: Sized Camera Feed */}
+                  <div className="flex-1 flex items-center justify-center p-12">
+                    <div className="w-[800px] h-[450px] border border-brand-border bg-black relative flex flex-col overflow-hidden shadow-2xl shadow-brand-accent/20">
+                      <div className="absolute top-0 left-0 bg-brand-border text-brand-text text-[10px] font-semibold tracking-wide lowercase px-2 py-1 z-10">
+                        OPTICAL SENSOR TRUNK [ SAFETY VERIFICATION ]
+                      </div>
+                      <img 
+                        src="http://localhost:8000/video_feed" 
+                        alt="Live Optics" 
+                        className="absolute inset-0 w-full h-full object-cover z-0"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* BIOMETRIC STATE: Full screen targeting UI */
+                <div className="z-10 absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-[2px]">
+                  {/* Full-screen live video feed for biometric */}
+                  <img 
+                    src="http://localhost:8000/video_feed" 
+                    alt="Live Optics" 
+                    className="absolute inset-0 w-full h-full object-cover z-[-1] opacity-70"
+                  />
+                  {telemetry.authStatus === 'SCANNING' || telemetry.authStatus === 'PROCESSING' ? (
+                    <div className="relative w-full max-w-4xl h-[600px] flex items-center justify-center">
+                      <div className="absolute inset-0 bg-brand-accent/5"></div>
+                      <div className="absolute top-0 left-0 w-full h-2 bg-brand-accent opacity-70 animate-[scan_2s_ease-in-out_infinite]"></div>
+                      <div className="absolute inset-x-32 inset-y-24 border-2 border-brand-accent/50 border-dashed rounded-[40px] animate-pulse"></div>
+                      
+                      <div className="absolute top-1/4 left-1/4 w-12 h-12 border-t-4 border-l-4 border-brand-accent"></div>
+                      <div className="absolute top-1/4 right-1/4 w-12 h-12 border-t-4 border-r-4 border-brand-accent"></div>
+                      <div className="absolute bottom-1/4 left-1/4 w-12 h-12 border-b-4 border-l-4 border-brand-accent"></div>
+                      <div className="absolute bottom-1/4 right-1/4 w-12 h-12 border-b-4 border-r-4 border-brand-accent"></div>
+                      
+                      <div className="absolute bottom-16 left-1/2 -translate-x-1/2 text-brand-accent text-2xl tracking-widest uppercase font-bold bg-black/80 px-8 py-3 border border-brand-accent/50">
+                        {telemetry.authStatus === 'SCANNING' ? 'DETECTING BIOMETRIC SIGNATURE...' : 'VERIFYING IDENTITY...'}
+                      </div>
+                    </div>
+                  ) : telemetry.authStatus === 'LOCKED' ? (
+                    <div className="bg-black/80 border border-brand-accent/50 p-16 rounded-xl shadow-2xl flex flex-col items-center backdrop-blur-md">
+                      <svg className="w-24 h-24 text-brand-textMuted mb-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                      <div className="text-4xl font-bold text-brand-textMuted tracking-widest uppercase mb-12">SYSTEM LOCKED</div>
+                      <button 
+                        onClick={() => fetch("http://localhost:8000/api/auth/start_scan", { method: "POST" })}
+                        className="animate-pulse bg-brand-accent hover:bg-brand-accent/90 text-black px-12 py-5 tracking-widest uppercase text-xl font-bold shadow-[0_0_30px_rgba(var(--color-brand-accent),0.4)] transition-all cursor-pointer rounded"
+                      >
+                        Press [SPACE] to Authenticate
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="bg-black/90 p-16 border-2 border-status-red rounded-xl shadow-[0_0_50px_rgba(239,68,68,0.3)] flex flex-col items-center">
+                      <svg className="w-24 h-24 text-status-red mb-8 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      <div className="text-4xl font-bold text-status-red tracking-widest uppercase mb-12">AUTHORIZATION FAILED</div>
+                      <button 
+                        onClick={() => fetch("http://localhost:8000/api/auth/start_scan", { method: "POST" })}
+                        className="bg-status-red/20 hover:bg-status-red text-status-red hover:text-black border border-status-red px-10 py-4 transition-all duration-300 tracking-widest uppercase text-lg font-bold rounded"
+                      >
+                        RETRY BIOMETRIC SCAN
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
       <PageHeader title="Lunar Soil Titration" subtitle="MISSION ACTIVE" />
@@ -611,13 +768,14 @@ export const Mission: React.FC = () => {
           expectedObject={telemetry.expectedObject}
           isGrasping={telemetry.isGrasping}
           graspedObject={telemetry.graspedObject}
+          fsmDeviationDetails={telemetry.fsmDeviationDetails}
         />
         <Drift />
 
         {/* ROW 4 */}
         <FDIRSys />
         <EdgeCompute />
-        <MissionSteps currentStep={telemetry.packetFragCurrent} overdueSteps={overdueSteps} />
+        <MissionSteps currentStep={telemetry.packetFragCurrent} overdueSteps={overdueSteps} steps={missionSteps} />
       </div>
     </div>
   );

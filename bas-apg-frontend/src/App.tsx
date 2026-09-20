@@ -5,6 +5,8 @@ import { Header } from './components/layout/Header';
 import { Setup } from './pages/Setup';
 import { Mission } from './pages/Mission';
 import { Audit } from './pages/Audit';
+import { Station } from './pages/Station';
+import { Training } from './pages/Training';
 import { MissionProvider, useMissionContext } from './context/MissionContext';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -63,14 +65,20 @@ function App() {
   return (
     <MissionProvider>
       <BrowserRouter>
-        <AppLayout>
           <Routes>
-            <Route path="/" element={<Navigate to="/setup" replace />} />
-            <Route path="/setup" element={<Setup />} />
-            <Route path="/mission" element={<ProtectedRoute><Mission /></ProtectedRoute>} />
-            <Route path="/audit" element={<Audit />} />
+            <Route path="/training" element={<Training />} />
+            <Route path="*" element={
+              <AppLayout>
+                <Routes>
+                  <Route path="/" element={<Navigate to="/setup" replace />} />
+                  <Route path="/setup" element={<Setup />} />
+                  <Route path="/mission" element={<ProtectedRoute><Mission /></ProtectedRoute>} />
+                  <Route path="/audit" element={<Audit />} />
+                  <Route path="/station" element={<Station />} />
+                </Routes>
+              </AppLayout>
+            } />
           </Routes>
-        </AppLayout>
       </BrowserRouter>
     </MissionProvider>
   );

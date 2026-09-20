@@ -36,25 +36,11 @@ def start_watchdog():
     api_process = multiprocessing.Process(target=start_api)
     api_process.start()
 
-    ml_process = None
-
     try:
         while True:
-            if ml_process is None or not ml_process.is_alive():
-                if ml_process is not None:
-                    print("\n[WATCHDOG] 🚨 ML Process Crash Detected! 🚨")
-                    print("[WATCHDOG] Restarting ML pipeline to resume state...\n")
-                    time.sleep(1)  # Brief pause before restart
-
-                ml_process = multiprocessing.Process(target=run_ai_engine)
-                ml_process.start()
-
             time.sleep(1)
-
     except KeyboardInterrupt:
         print("\n[WATCHDOG] Shutting down...")
-        if ml_process:
-            ml_process.terminate()
         api_process.terminate()
         sys.exit(0)
 

@@ -1,0 +1,54 @@
+{
+  "id": "book_open_and_close_",
+  "name": "book open and close ",
+  "version": "1.0-custom",
+  "description": "Custom experiment: book open and close ",
+  "objects": [
+    "book_opeb_",
+    "book_",
+    "procedure",
+    "hand"
+  ],
+  "steps": [
+    {
+      "step_id": "S02",
+      "action": "DETECT",
+      "object": "book_",
+      "description": "book detectedion",
+      "audio_prompt": "book detection needed",
+      "timeout_seconds": 60,
+      "next_step": "S03",
+      "required_evidence": [],
+      "confidence_threshold": 0.5,
+      "recovery_options": [
+        "voice_prompt"
+      ]
+    },
+    {
+      "step_id": "S03",
+      "action": "DETECT",
+      "object": "book_opeb_",
+      "description": "book opeb dectection",
+      "audio_prompt": "please open the book",
+      "timeout_seconds": 60,
+      "next_step": null,
+      "required_evidence": [],
+      "confidence_threshold": 0.5,
+      "recovery_options": [
+        "voice_prompt"
+      ]
+    },
+    {
+      "step_id": "S04",
+      "action": "COMPLETE",
+      "object": "procedure",
+      "description": "Procedure Complete.",
+      "audio_prompt": "Procedure complete. All steps verified.",
+      "timeout_seconds": 60,
+      "next_step": null,
+      "required_evidence": [],
+      "confidence_threshold": 0.5,
+      "recovery_options": []
+    }
+  ]
+}

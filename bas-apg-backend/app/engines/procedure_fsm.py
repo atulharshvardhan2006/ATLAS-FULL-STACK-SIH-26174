@@ -37,6 +37,7 @@ class StepDefinition:
     next_step: str | None
     confidence_threshold: float
     recovery_options: list[str]
+    audio_prompt: str
 
 @dataclass
 class FSMState:
@@ -81,7 +82,7 @@ class ProcedureFSM:
         debounce_frames: Number of consecutive matching frames before confirming a step.
     """
 
-    def __init__(self, procedure_path: str, debounce_frames: int = 3):
+    def __init__(self, procedure_path: str, debounce_frames: int = 5):
         self.steps: list[StepDefinition] = []
         self.state = FSMState()
         self.debounce_frames = debounce_frames
@@ -185,6 +186,7 @@ class ProcedureFSM:
                     recovery_options=step_data.get(
                         "recovery_options", ["voice_prompt"]
                     ),
+                    audio_prompt=step_data.get("audio_prompt", f"Please {step_data['action'].lower()} the {step_data['object'].replace('open_', '').replace('_', ' ')}."),
                 )
             )
 
@@ -303,7 +305,7 @@ class ProcedureFSM:
             self._reset_debounce()
             return self._trigger_deviation(
                 "WRONG_OBJECT",
-                "An out of sequence step is added."
+                f"{detected_object.replace('_', ' ')} detected, this is not needed. Please show the {current_step.object.replace('_', ' ')}."
             )
 
         
@@ -322,7 +324,7 @@ class ProcedureFSM:
                     self._reset_debounce()
                     return self._trigger_deviation(
                         "SKIPPED_STEP",
-                        "A step is skipped."
+                        f"{detected_object.replace('_', ' ')} detected, this is a future step. Please show the {current_step.object.replace('_', ' ')}."
                     )
 
         
