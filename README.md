@@ -231,6 +231,16 @@ Below are live captures of the A.T.L.A.S system in action across the different o
 ![Mission Control 2](assets/screenshots/screenshot_4.png)
 ![System Locked](assets/screenshots/screenshot_5.png)
 
+### Audit & Telemetry Logs
+![Audit Log 1](assets/screenshots/screenshot_6.png)
+![Audit Log 2](assets/screenshots/screenshot_7.png)
+
+### Training Suite & Object Registration
+![Training Suite](assets/screenshots/screenshot_8.png)
+
+### Local Data Logging & Native Apps
+![Data Folders & Apps](assets/screenshots/screenshot_9.png)
+
 ---
 
 <div align="center">
