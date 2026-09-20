@@ -1,0 +1,39 @@
+{
+  "id": "practise",
+  "name": "practise",
+  "version": "1.0-custom",
+  "description": "Custom experiment: practise",
+  "objects": [
+    "phone",
+    "procedure",
+    "hand"
+  ],
+  "steps": [
+    {
+      "step_id": "S02",
+      "action": "DETECT",
+      "object": "phone",
+      "description": "detection of phone",
+      "audio_prompt": "detection success",
+      "timeout_seconds": 60,
+      "next_step": null,
+      "required_evidence": [],
+      "confidence_threshold": 0.5,
+      "recovery_options": [
+        "voice_prompt"
+      ]
+    },
+    {
+      "step_id": "S03",
+      "action": "COMPLETE",
+      "object": "procedure",
+      "description": "Procedure Complete.",
+      "audio_prompt": "Procedure complete. All steps verified.",
+      "timeout_seconds": 60,
+      "next_step": null,
+      "required_evidence": [],
+      "confidence_threshold": 0.5,
+      "recovery_options": []
+    }
+  ]
+}

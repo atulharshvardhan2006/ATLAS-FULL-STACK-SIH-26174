@@ -1147,10 +1147,11 @@ def run_ai_engine():
                         
         
         prev_idx = fsm.state.current_step_index
+        prev_status = fsm.state.status
         if MissionState.demo_started:
             fsm.process_observation(detected_action, detected_obj, action_conf)
             fsm.save_state_to_disk() 
-        if getattr(fsm, "state", None) and fsm.state.current_step_index != prev_idx:
+        if getattr(fsm, "state", None) and (fsm.state.current_step_index != prev_idx or (fsm.state.status == "COMPLETED" and prev_status != "COMPLETED")):
             fsm._deviation_start = None
             fsm._deviation_obj = None
             
