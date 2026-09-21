@@ -970,7 +970,7 @@ This will:
 ### Setup & Pre-Flight Diagnostics
 ![Setup Dashboard](assets/screenshots/screenshot_1.png)
 
-### Station Telemetry
+### Protocol
 ![Station Dashboard](assets/screenshots/screenshot_2.png)
 
 ### Mission Control & Live Feed
