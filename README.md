@@ -880,8 +880,8 @@ graph LR
 <br/>
 
 ```bash
-git clone https://github.com/atulharshvardhan2006/ATLAS-FULL-STACK-SIH-26174-.git
-cd ATLAS-FULL-STACK-SIH-26174-
+git clone https://github.com/atulharshvardhan2006/ATLAS-FULL-STACK-SIH-26174.git
+cd ATLAS-FULL-STACK-SIH-26174
 ```
 
 </details>

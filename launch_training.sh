@@ -11,10 +11,20 @@ export NUMEXPR_NUM_THREADS=2
 
 cd "$(dirname "$0")"
 
-eval "$(/Users/atulharshvardhan/miniconda3/bin/conda shell.bash hook)"
-conda activate bas_apg_env
-
-PYTHON="/Users/atulharshvardhan/miniconda3/envs/bas_apg_env/bin/python"
+# Setup Python Environment
+if [ -d "bas-apg-backend/venv" ]; then
+    PYTHON="$(pwd)/bas-apg-backend/venv/bin/python"
+elif command -v conda &> /dev/null && conda env list | grep -q "bas_apg_env"; then
+    eval "$(conda shell.bash hook)"
+    conda activate bas_apg_env
+    PYTHON="python"
+elif [ -d "$HOME/miniconda3/envs/bas_apg_env" ]; then
+    eval "$($HOME/miniconda3/bin/conda shell.bash hook)"
+    conda activate bas_apg_env
+    PYTHON="python"
+else
+    PYTHON="python3"
+fi
 
 lsof -ti:8000 | xargs kill -9 2>/dev/null
 lsof -ti:5173 | xargs kill -9 2>/dev/null

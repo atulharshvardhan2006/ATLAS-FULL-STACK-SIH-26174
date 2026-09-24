@@ -25,9 +25,10 @@ def get_hsv_bbox(frame, lower1, upper1, lower2=None, upper2=None):
     return (x, y, w, h)
 
 def auto_annotate():
-    img_dir = "/Users/atulharshvardhan/Desktop/BAS-APG-Workspace/captured_frames"
-    label_dir = "/Users/atulharshvardhan/Desktop/BAS-APG-Workspace/bas-apg-backend/data/dataset/labels/train"
-    out_img_dir = "/Users/atulharshvardhan/Desktop/BAS-APG-Workspace/bas-apg-backend/data/dataset/images/train"
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    img_dir = os.path.join(script_dir, "../captured_frames")
+    label_dir = os.path.join(script_dir, "data/dataset/labels/train")
+    out_img_dir = os.path.join(script_dir, "data/dataset/images/train")
     
     os.makedirs(label_dir, exist_ok=True)
     os.makedirs(out_img_dir, exist_ok=True)

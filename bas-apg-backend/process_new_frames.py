@@ -25,9 +25,11 @@ def get_hsv_bbox(frame, lower1, upper1, lower2=None, upper2=None):
     x, y, w, h = cv2.boundingRect(largest_contour)
     return (x, y, w, h)
 
-img_dir = "/Users/atulharshvardhan/Desktop/BAS-APG-Workspace/captured_frames"
-label_dir = "/Users/atulharshvardhan/Desktop/BAS-APG-Workspace/bas-apg-backend/data/dataset/labels/train"
-out_img_dir = "/Users/atulharshvardhan/Desktop/BAS-APG-Workspace/bas-apg-backend/data/dataset/images/train"
+import os
+script_dir = os.path.dirname(os.path.abspath(__file__))
+img_dir = os.path.join(script_dir, "../captured_frames")
+label_dir = os.path.join(script_dir, "data/dataset/labels/train")
+out_img_dir = os.path.join(script_dir, "data/dataset/images/train")
 
 print("Processing new frames...")
 success_count = 0
