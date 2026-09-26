@@ -761,6 +761,13 @@ The core AI engine runs in a **dedicated background thread**, processing frames 
 | 🛸 **Unsecured Drift** | Kalman velocity analysis detects objects moving without being held |
 | 🎬 **Video Recording** | Automatic MP4 recording per session for audit replay |
 | 📦 **Dynamic Object Registry** | Runtime object registration via ORB — no retraining needed |
+| 🌊 **Kinetic Jerk & Slosh Guard** | Physics-based fluid spill mitigation for microgravity handling |
+| 🔋 **SWaP-C Eco-Governor** | Autonomous spacecraft power optimization throttling static scenes |
+| ⛓️ **Merkle Flight Recorder** | DO-178C compliant tamper-proof hash chain logging for FSM |
+| ⏱️ **Cognitive Stall Detector** | Kinematic hesitation tracking triggering TTS operator assistance |
+| 🎯 **FOD Vector Projection** | Active collision avoidance with trajectory drawing for drifting items |
+| 🛰️ **CCSDS Telemetry** | Deep-space CCSDS Space Packet Protocol (133.0-B-2) formatter |
+| 🌐 **WebGL Digital Twin** | Bandwidth-optimized 3D Canvas rendering of the experiment state |
 
 <img src="https://capsule-render.vercel.app/api?type=rect&color=0D1117&height=2&section=header" width="100%" />
 
@@ -792,7 +799,10 @@ A.T.L.A.S/
 │   │   │   ├── voice_alert.py              Background TTS worker
 │   │   │   ├── pnp_solver.py              PnP pose estimation
 │   │   │   ├── kinematic_exporter.py       Euler angle conversion
-│   │   │   └── protocol_compiler.py        Experimental LLM parser
+│   │   │   ├── protocol_compiler.py        Experimental LLM parser
+│   │   │   ├── ccsds_formatter.py          CCSDS telemetry bit-packing
+│   │   │   ├── merkle_ledger.py            Cryptographic audit hashing
+│   │   │   └── crew_tracker.py             Crew proximity and safety tracking
 │   │   ├── routers/
 │   │   │   ├── stream.py                   WebSocket + MJPEG + auth
 │   │   │   ├── session.py                  Session CRUD + audit
