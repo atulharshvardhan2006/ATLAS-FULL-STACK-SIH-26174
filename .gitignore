@@ -29,3 +29,5 @@ bas-apg-backend/data/experiment_log.txt
 
 # Exclude macOS apps
 *.app/
+*.db
+*.db-*

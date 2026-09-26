@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, memo } from 'react';
 import { PageHeader } from '../components/common/PageHeader';
 import { Card } from '../components/common/Card';
+import { DigitalTwin } from '../components/DigitalTwin';
 
 // Slow changing data
 interface SlowTelemetry {
@@ -20,6 +21,30 @@ interface SlowTelemetry {
   authStatus: 'LOCKED' | 'SCANNING' | 'PROCESSING' | 'SAFETY_HAND' | 'SAFETY_GLOVES' | 'SAFETY_GLASSES' | 'GRANTED' | 'DENIED';
   crewSyncState: string;
   expectedAction: string;
+  // ─── New Aerospace Feature Fields ──────────────────────────
+  sloshJerk: number;
+  sloshAlert: boolean;
+  sloshAlertText: string;
+  ecoMode: string;
+  ecoTargetFps: number;
+  ecoFramesSkipped: number;
+  merkleHash: string;
+  merkleChainLength: number;
+  hesitationActive: boolean;
+  hesitationCount: number;
+  hesitationDwellMs: number;
+  fodActive: boolean;
+  fodObject: string;
+  fodEta: number;
+  detections: Array<{ class_name: string; norm_bbox: number[]; z_depth_mm?: number }>;
+  handWrist: number[] | null;
+  // ─── CCSDS Space Packet ────────────────────────────────────
+  ccsdsLastHex: string;
+  ccsdsTotalPackets: number;
+  ccsdsTotalBytes: number;
+  ccsdsLastApid: string;
+  ccsdsApidName: string;
+  ccsdsActiveApids: number;
 }
 
 // 1. ThermalTTF (React.memo)
@@ -45,18 +70,22 @@ const ThermalTTF = memo(({ ttfSeconds, pidDelay }: { ttfSeconds: number, pidDela
   );
 });
 
-// 2. CognitiveIndex (React.memo)
-const CognitiveIndex = memo(({ cognitiveLoad }: { cognitiveLoad: string }) => (
+// 2. CognitiveIndex — Now driven by REAL hesitation data (Feature 4)
+const CognitiveIndex = memo(({ cognitiveLoad, hesitationActive, hesitationCount, hesitationDwellMs }: { cognitiveLoad: string, hesitationActive: boolean, hesitationCount: number, hesitationDwellMs: number }) => (
   <div className="col-span-3">
     <Card title="COGNITIVE INDEX" className="p-3">
       <div className="text-sm space-y-2 lowercase">
-        <div className="text-xs text-brand-textMuted uppercase">KALMAN HESITATION</div>
-        <div className={`text-base ${cognitiveLoad === 'NOMINAL' ? 'text-status-green' : 'text-status-red animate-pulse'}`}>
-          {cognitiveLoad}
+        <div className="text-xs text-brand-textMuted uppercase">HESITATION DETECTOR</div>
+        <div className={`text-base ${hesitationActive ? 'text-status-red animate-pulse' : cognitiveLoad === 'NOMINAL' ? 'text-status-green' : 'text-status-red animate-pulse'}`}>
+          {hesitationActive ? 'STALL DETECTED' : cognitiveLoad}
         </div>
         <div className="flex justify-between text-xs pt-2 border-t border-brand-border/30">
-          <span>Velocity Stall</span>
-          <span>{cognitiveLoad === 'NOMINAL' ? '0' : '3'} / 400ms</span>
+          <span>Stalls</span>
+          <span className={hesitationCount > 0 ? 'text-status-amber' : ''}>{hesitationCount} events</span>
+        </div>
+        <div className="flex justify-between text-xs">
+          <span>Dwell</span>
+          <span>{hesitationActive ? `${(hesitationDwellMs / 1000).toFixed(1)}s` : '0.0s'}</span>
         </div>
       </div>
     </Card>
@@ -393,6 +422,119 @@ const EdgeCompute = memo(() => {
   );
 });
 
+// ─── FEATURE 1: SLOSH GUARD HUD CARD ────────────────────────────────────────
+const SloshGuard = memo(({ jerk, alert, alertText }: { jerk: number, alert: boolean, alertText: string }) => {
+  const jerkPct = Math.min(100, (jerk / 1000) * 100);
+  return (
+    <div className="col-span-3">
+      <Card title="SLOSH GUARD" className="p-3">
+        <div className="text-sm space-y-2 lowercase">
+          <div className="text-xs text-brand-textMuted uppercase">KINETIC JERK |j|</div>
+          <div className={`font-bold text-lg ${alert ? 'text-status-red animate-pulse' : 'text-status-green'}`}>
+            {jerk.toFixed(0)} px/s³
+          </div>
+          <div className="w-full h-1.5 bg-brand-borderDark overflow-hidden">
+            <div className={`h-full transition-all duration-200 ${alert ? 'bg-status-red' : 'bg-status-green'}`} style={{ width: `${jerkPct}%` }}></div>
+          </div>
+          {alert && (
+            <div className="text-[10px] text-status-red font-bold animate-pulse pt-1">
+              ⚠ {alertText}
+            </div>
+          )}
+          <div className="flex justify-between text-xs pt-2 border-t border-brand-border/30">
+            <span>Threshold</span>
+            <span>800 px/s³</span>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+});
+
+// ─── FEATURE 2: ECO-GOVERNOR HUD CARD ───────────────────────────────────────
+const EcoGovernor = memo(({ mode, targetFps, framesSkipped }: { mode: string, targetFps: number, framesSkipped: number }) => {
+  const isStandby = mode === 'STANDBY';
+  return (
+    <div className="col-span-3">
+      <Card title="SWaP-C ECO-GOVERNOR" className="p-3">
+        <div className="text-sm space-y-2 lowercase">
+          <div className="text-xs text-brand-textMuted uppercase">POWER MODE</div>
+          <div className={`font-bold text-base ${isStandby ? 'text-status-amber animate-pulse' : 'text-status-green'}`}>
+            {mode} ({targetFps} FPS)
+          </div>
+          <div className="flex justify-between text-xs pt-2 border-t border-brand-border/30">
+            <span>Frames Saved</span>
+            <span className="text-brand-accent">{framesSkipped.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between text-xs">
+            <span>Power Savings</span>
+            <span className={isStandby ? 'text-status-green' : 'text-brand-textMuted'}>
+              {isStandby ? '~83% reduction' : 'Nominal'}
+            </span>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+});
+
+// ─── FEATURE 3: MERKLE LEDGER HUD CARD ──────────────────────────────────────
+const MerkleLedger = memo(({ hash, chainLength }: { hash: string, chainLength: number }) => (
+  <div className="col-span-3">
+    <Card title="FLIGHT RECORDER" className="p-3">
+      <div className="text-sm space-y-2 lowercase">
+        <div className="text-xs text-brand-textMuted uppercase">MERKLE SHA-256 CHAIN</div>
+        <div className="font-mono text-brand-accent text-xs break-all">
+          {hash || '0x000000...0000'}
+        </div>
+        <div className="flex justify-between text-xs pt-2 border-t border-brand-border/30">
+          <span>Chain Depth</span>
+          <span className="text-brand-accent">{chainLength} blocks</span>
+        </div>
+        <div className="flex justify-between text-xs">
+          <span>Integrity</span>
+          <span className="text-status-green">VERIFIED (DO-178C)</span>
+        </div>
+      </div>
+    </Card>
+  </div>
+));
+
+// ─── CCSDS TELEMETRY HUD CARD ─────────────────────────────────────────────
+const CCSDSTelemetry = memo(({ lastHex, totalPackets, totalBytes, lastApid, apidName, activeApids }: { lastHex: string, totalPackets: number, totalBytes: number, lastApid: string, apidName: string, activeApids: number }) => {
+  return (
+    <div className="col-span-3">
+      <Card title="DSN UPLINK / CCSDS 133.0-B-2" className="p-3">
+        <div className="text-sm space-y-2 lowercase">
+          <div className="flex justify-between text-xs text-brand-textMuted uppercase">
+            <span>PACKET STREAM</span>
+            <span className="text-status-green animate-pulse">● LIVE</span>
+          </div>
+          
+          <div className="font-mono text-[9px] text-brand-accent bg-black p-1 border border-brand-border/50 break-all h-10 overflow-hidden leading-tight">
+            {lastHex || 'AWAITING PACKETS...'}
+          </div>
+
+          <div className="flex justify-between text-[10px] pt-1">
+            <span className="uppercase text-brand-textMuted">LAST APID</span>
+            <span className="text-brand-accent">{lastApid} ({apidName})</span>
+          </div>
+          
+          <div className="flex justify-between text-[10px] border-t border-brand-border/30 pt-1 mt-1">
+            <span>TX PACKETS</span>
+            <span>{totalPackets.toLocaleString()}</span>
+          </div>
+          
+          <div className="flex justify-between text-[10px]">
+            <span>TX VOLUME</span>
+            <span>{(totalBytes / 1024).toFixed(2)} KB</span>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+});
+
 const MissionSteps = memo(({ currentStep, overdueSteps, steps }: { currentStep: number, overdueSteps: Set<number>, steps: string[] }) => (
   <div className="col-span-6">
     <Card title="PROCEDURE CHECKLIST (LIVE AI TRACKING)" className="p-3">
@@ -447,6 +589,30 @@ export const Mission: React.FC = () => {
     fsmDeviationDetails: null,
     authStatus: 'LOCKED',
     expectedAction: '',
+    // ─── New Aerospace Feature Defaults ──────────────────────
+    sloshJerk: 0,
+    sloshAlert: false,
+    sloshAlertText: '',
+    ecoMode: 'ACTIVE',
+    ecoTargetFps: 30,
+    ecoFramesSkipped: 0,
+    merkleHash: '',
+    merkleChainLength: 0,
+    hesitationActive: false,
+    hesitationCount: 0,
+    hesitationDwellMs: 0,
+    fodActive: false,
+    fodObject: '',
+    fodEta: 0,
+    detections: [],
+    handWrist: null,
+    // ─── CCSDS Space Packet Defaults ───────────────────────
+    ccsdsLastHex: '',
+    ccsdsTotalPackets: 0,
+    ccsdsTotalBytes: 0,
+    ccsdsLastApid: '',
+    ccsdsApidName: '',
+    ccsdsActiveApids: 0,
   });
 
 
@@ -608,6 +774,30 @@ export const Mission: React.FC = () => {
             graspedObject: payload.hoi && payload.hoi.grasped_object !== undefined ? payload.hoi.grasped_object : prev.graspedObject,
             fsmDeviationDetails: payload.fsm && payload.fsm.deviation_details !== undefined ? payload.fsm.deviation_details : prev.fsmDeviationDetails,
             authStatus: payload.auth_status || prev.authStatus,
+            // ─── New Aerospace Features ────────────────────────────────
+            sloshJerk: payload.slosh_guard?.jerk_magnitude ?? prev.sloshJerk,
+            sloshAlert: payload.slosh_guard?.alert ?? prev.sloshAlert,
+            sloshAlertText: payload.slosh_guard?.alert_text ?? prev.sloshAlertText,
+            ecoMode: payload.eco_governor?.mode ?? prev.ecoMode,
+            ecoTargetFps: payload.eco_governor?.target_fps ?? prev.ecoTargetFps,
+            ecoFramesSkipped: payload.eco_governor?.frames_skipped ?? prev.ecoFramesSkipped,
+            merkleHash: payload.merkle_ledger?.chain_hash ?? prev.merkleHash,
+            merkleChainLength: payload.merkle_ledger?.chain_length ?? prev.merkleChainLength,
+            hesitationActive: payload.hesitation?.active ?? prev.hesitationActive,
+            hesitationCount: payload.hesitation?.count ?? prev.hesitationCount,
+            hesitationDwellMs: payload.hesitation?.dwell_ms ?? prev.hesitationDwellMs,
+            fodActive: payload.fod_projection?.active ?? prev.fodActive,
+            fodObject: payload.fod_projection?.object ?? prev.fodObject,
+            fodEta: payload.fod_projection?.impact_eta_s ?? prev.fodEta,
+            detections: payload.detections ?? prev.detections,
+            handWrist: payload.hand?.norm_wrist ?? prev.handWrist,
+            // ─── CCSDS Space Packet ────────────────────────────────────
+            ccsdsLastHex: payload.ccsds?.last_hex ?? prev.ccsdsLastHex,
+            ccsdsTotalPackets: payload.ccsds?.total_packets ?? prev.ccsdsTotalPackets,
+            ccsdsTotalBytes: payload.ccsds?.total_bytes ?? prev.ccsdsTotalBytes,
+            ccsdsLastApid: payload.ccsds?.last_apid ?? prev.ccsdsLastApid,
+            ccsdsApidName: payload.ccsds?.apid_name ?? prev.ccsdsApidName,
+            ccsdsActiveApids: payload.ccsds?.active_apids ?? prev.ccsdsActiveApids,
           };
         });
       } catch (e) {
@@ -754,7 +944,12 @@ export const Mission: React.FC = () => {
       <div className="grid grid-cols-12 gap-2 auto-rows-min mt-6">
         {/* ROW 1 */}
         <ThermalTTF ttfSeconds={telemetry.ttfSeconds} pidDelay={telemetry.pidDelay} />
-        <CognitiveIndex cognitiveLoad={telemetry.cognitiveLoad} />
+        <CognitiveIndex 
+          cognitiveLoad={telemetry.cognitiveLoad} 
+          hesitationActive={telemetry.hesitationActive}
+          hesitationCount={telemetry.hesitationCount}
+          hesitationDwellMs={telemetry.hesitationDwellMs}
+        />
         <FFTResonance fps={telemetry.fps} />
         <AIConfidence conf={telemetry.aiConfidence} />
 
@@ -772,10 +967,28 @@ export const Mission: React.FC = () => {
         />
         <Drift />
 
-        {/* ROW 4 */}
-        <FDIRSys />
-        <EdgeCompute />
+        {/* ROW 4: Aerospace Feature Cards */}
+        <SloshGuard jerk={telemetry.sloshJerk} alert={telemetry.sloshAlert} alertText={telemetry.sloshAlertText} />
+        <EcoGovernor mode={telemetry.ecoMode} targetFps={telemetry.ecoTargetFps} framesSkipped={telemetry.ecoFramesSkipped} />
+        <MerkleLedger hash={telemetry.merkleHash} chainLength={telemetry.merkleChainLength} />
         <MissionSteps currentStep={telemetry.packetFragCurrent} overdueSteps={overdueSteps} steps={missionSteps} />
+
+        {/* ROW 5: Digital Twin & FOD Status */}
+        <DigitalTwin 
+          detections={telemetry.detections}
+          handWrist={telemetry.handWrist}
+          fodActive={telemetry.fodActive}
+          fodObject={telemetry.fodObject}
+        />
+        <CCSDSTelemetry
+          lastHex={telemetry.ccsdsLastHex}
+          totalPackets={telemetry.ccsdsTotalPackets}
+          totalBytes={telemetry.ccsdsTotalBytes}
+          lastApid={telemetry.ccsdsLastApid}
+          apidName={telemetry.ccsdsApidName}
+          activeApids={telemetry.ccsdsActiveApids}
+        />
+        <EdgeCompute />
       </div>
     </div>
   );

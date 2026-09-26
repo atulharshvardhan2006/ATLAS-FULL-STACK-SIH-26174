@@ -74,6 +74,7 @@ def init_db():
             timestamp     TEXT NOT NULL,
             previous_state TEXT NOT NULL,
             new_state     TEXT NOT NULL,
+            merkle_hash   TEXT DEFAULT '',
             FOREIGN KEY (session_id) REFERENCES bas_sessions(session_id)
         )
     """)
@@ -119,8 +120,8 @@ def db_writer_daemon():
         try:
             if table == "FSM":
                 cursor.execute(
-                    "INSERT INTO fsm_transitions (session_id, timestamp, previous_state, new_state) VALUES (?, ?, ?, ?)",
-                    (data["session_id"], now, data["previous_state"], data["new_state"])
+                    "INSERT INTO fsm_transitions (session_id, timestamp, previous_state, new_state, merkle_hash) VALUES (?, ?, ?, ?, ?)",
+                    (data["session_id"], now, data["previous_state"], data["new_state"], data.get("merkle_hash", ""))
                 )
             elif table == "HAZARD":
                 cursor.execute(

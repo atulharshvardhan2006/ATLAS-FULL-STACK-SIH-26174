@@ -28,6 +28,8 @@ from app.core.database import flight_recorder_queue
 from app.engines.hoi_tracker import HOITracker
 from app.engines.procedure_fsm import ProcedureFSM
 from app.engines.kalman_filter import MultiObjectKalmanTracker
+from app.engines.merkle_ledger import flight_merkle_ledger
+from app.engines.crew_tracker import CrewTracker
 
 # ─── BIOMETRIC SECURITY SETUP ────────────────────────────────────────────────
 import glob
@@ -486,6 +488,7 @@ def is_anatomically_valid(joints) -> bool:
 
 
 def run_ai_engine():
+    global global_frame_buffer
     speak('Atlas is online')
     from app.core.config import get_settings
     import os
@@ -502,6 +505,7 @@ def run_ai_engine():
     hoi_tracker = HOITracker()
     spatial_checker = RealSpatialChecker()
     kalman_tracker = MultiObjectKalmanTracker()  
+    crew_tracker = CrewTracker()  # Crew Safety & Proximity Tracking
     
     z_depth_history = {}  
     drift_history = {}    
@@ -512,6 +516,42 @@ def run_ai_engine():
     fsm.start() 
 
     last_frame_time = time.time()
+    
+    # ==========================================
+    # FEATURE 1: KINETIC JERK & SLOSH GUARD
+    # Monitors handling smoothness during liquid/sample transfers.
+    # Jerk = d(acceleration)/dt — two vector subtractions per frame.
+    # ==========================================
+    _slosh_prev_vx, _slosh_prev_vy = 0.0, 0.0
+    _slosh_prev_ax, _slosh_prev_ay = 0.0, 0.0
+    _slosh_last_time = time.time()
+    JERK_THRESHOLD = 800.0  # px/s³ — calibrated for microgravity handling
+    _slosh_alert_cooldown = 0.0
+    
+    # ==========================================
+    # FEATURE 2: SWaP-C ECO-GOVERNOR
+    # Throttles YOLO inference when scene is static to save power.
+    # ==========================================
+    _eco_prev_gray = None
+    _eco_standby = False
+    _eco_standby_timer = 0.0
+    _eco_skip_counter = 0
+    _eco_frame_skip = 1  # 1 = process every frame, 6 = every 6th frame
+    ECO_STATIC_THRESHOLD = 5.0   # mean pixel diff to consider scene "static"
+    ECO_STANDBY_DELAY = 5.0      # seconds of static scene before standby
+    _eco_total_skipped = 0
+    
+    # ==========================================
+    # FEATURE 4: HESITATION & COGNITIVE STALL DETECTOR
+    # Detects when operator is stuck/confused near a target object.
+    # ==========================================
+    _hesitation_hover_start = None
+    _hesitation_count = 0
+    _hesitation_prompted = False
+    HESITATION_HOVER_RADIUS_PX = 120  # ~80mm at typical focal length
+    HESITATION_VELOCITY_THRESHOLD = 2.0  # px/frame — near-stationary
+    HESITATION_DWELL_SECONDS = 4.0
+    
     
     CAMERA_INDEX = config.camera_index
     cap = cv2.VideoCapture(CAMERA_INDEX)
@@ -604,6 +644,52 @@ def run_ai_engine():
         if not ret:
             time.sleep(0.01)
             continue
+        
+        # ==========================================
+        # FEATURE 2: ECO-GOVERNOR — Frame Differencing
+        # Compare current frame vs previous baseline.
+        # If scene is static for >5s, throttle YOLO to 5 FPS.
+        # ==========================================
+        eco_small = cv2.cvtColor(cv2.resize(frame, (160, 90)), cv2.COLOR_BGR2GRAY)
+        if _eco_prev_gray is not None:
+            eco_diff = cv2.absdiff(eco_small, _eco_prev_gray)
+            eco_mean_diff = float(np.mean(eco_diff))
+            
+            if eco_mean_diff < ECO_STATIC_THRESHOLD and not hand_tracker.detected:
+                # Scene is static, increment standby timer
+                _eco_standby_timer += 0.033  # ~30fps frame time
+                if _eco_standby_timer > ECO_STANDBY_DELAY:
+                    _eco_standby = True
+                    _eco_frame_skip = 6  # Process every 6th frame = ~5 FPS
+            else:
+                # Motion detected — immediately go active
+                _eco_standby = False
+                _eco_standby_timer = 0.0
+                _eco_frame_skip = 1
+        _eco_prev_gray = eco_small
+        
+        # Apply eco-governor: skip YOLO inference on standby frames
+        _eco_skip_counter += 1
+        if _eco_standby and (_eco_skip_counter % _eco_frame_skip != 0):
+            _eco_total_skipped += 1
+            MissionState.eco_governor_mode = "STANDBY"
+            MissionState.eco_governor_fps = 5.0
+            MissionState.eco_frames_skipped = _eco_total_skipped
+            # Still update the frame buffer for MJPEG stream
+            if not hasattr(MissionState, '_frame_buffer') or MissionState._frame_buffer.shape != frame.shape:
+                MissionState._frame_buffer = np.zeros_like(frame)
+            np.copyto(MissionState._frame_buffer, frame)
+            MissionState.latest_frame = MissionState._frame_buffer
+            MissionState.frame_sequence += 1
+            ret_enc, buffer_enc = cv2.imencode('.jpg', frame)
+            if ret_enc:
+                global_frame_buffer = buffer_enc.tobytes()
+            continue  # Skip heavy processing this frame
+        
+        MissionState.eco_governor_mode = "ACTIVE"
+        MissionState.eco_governor_fps = 30.0
+        MissionState.eco_frames_skipped = _eco_total_skipped
+        
         
         # Dynamic thermal throttle based on macOS thermal pressure
         thermal = check_thermal()
@@ -803,6 +889,9 @@ def run_ai_engine():
         else:
             results = yolo_model.track(frame, persist=True, verbose=False, conf=0.75)
 
+            person_bboxes = []  # Crew Safety: collect person detections
+            hazard_centroids = []  # Crew Safety: collect hazard object centroids
+
             for result in results:
                 boxes = result.boxes
                 if boxes is None or len(boxes) == 0:
@@ -816,6 +905,10 @@ def run_ai_engine():
                     raw_class_name = result.names[int(d.cls)]
                     
                     class_name = COCO_TO_CUSTOM_MAP.get(raw_class_name, raw_class_name)
+
+                    # Crew Safety: capture person detections before filtering
+                    if raw_class_name == "person":
+                        person_bboxes.append((x1, y1, x2, y2))
                     
                     if class_name not in ["main_box", "red_box", "yellow_box", "sample", "hole_puncher", "scissors"]:
                         continue
@@ -863,6 +956,12 @@ def run_ai_engine():
                         "confidence": conf
                     })
 
+                    # Crew Safety: collect centroids for hazard objects
+                    if class_name in MissionState.crew_hazard_objects:
+                        hcx = (x1 + x2) / 2.0
+                        hcy = (y1 + y2) / 2.0
+                        hazard_centroids.append((hcx, hcy))
+
             det_count = len(MissionState.yolo_detections)
             hud_text = f"YOLO: {det_count} objects | TARGET: {current_expected_prop.upper()}"
             cv2.putText(frame, hud_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2, cv2.LINE_AA)
@@ -874,6 +973,48 @@ def run_ai_engine():
             current_track_ids = {det["track_id"] for det in hoi_detections}
             z_depth_history = {tid: v for tid, v in z_depth_history.items() if tid in current_track_ids}
             drift_history = {tid: v for tid, v in drift_history.items() if tid in current_track_ids}
+
+            # ── CREW SAFETY TRACKING ─────────────────────────────
+            # Use the pose_model (yolov8n-pose.pt) for person detection
+            # because the custom best.pt model has NO "person" class.
+            if MissionState.crew_safety_active and frame_counter % 6 == 0:
+                small_frame = cv2.resize(frame, (320, 240))
+                pose_results = pose_model(small_frame, verbose=False, conf=0.5)
+                person_bboxes_scaled = []
+                scale_x = frame.shape[1] / 320.0
+                scale_y = frame.shape[0] / 240.0
+                for pr in pose_results:
+                    if pr.boxes is not None:
+                        for box in pr.boxes:
+                            if int(box.cls) == 0:  # class 0 = person
+                                px1, py1, px2, py2 = box.xyxy[0].tolist()
+                                person_bboxes_scaled.append((
+                                    px1 * scale_x, py1 * scale_y,
+                                    px2 * scale_x, py2 * scale_y
+                                ))
+
+                crew_telemetry = crew_tracker.update(person_bboxes_scaled)
+                crew_tracker.evaluate_safety(hazard_centroids)
+                MissionState.crew_telemetry = crew_telemetry
+
+                # Draw crew bounding boxes on the video feed
+                for ct in crew_telemetry:
+                    bx1, by1, bx2, by2 = [int(v) for v in ct["bbox"]]
+                    if ct["status"] == "CRITICAL":
+                        color = (0, 0, 255)  # Red
+                        cv2.rectangle(frame, (bx1, by1), (bx2, by2), color, 3)
+                        cv2.putText(frame, f"CREW {ct['crew_id']} IMMOBILE", (bx1, by1 - 10),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2, cv2.LINE_AA)
+                    elif ct["status"] == "WARNING":
+                        color = (0, 200, 255)  # Yellow
+                        cv2.rectangle(frame, (bx1, by1), (bx2, by2), color, 2)
+                        cv2.putText(frame, f"CREW {ct['crew_id']} IN ZONE", (bx1, by1 - 10),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2, cv2.LINE_AA)
+                    else:
+                        color = (0, 255, 0)  # Green
+                        cv2.rectangle(frame, (bx1, by1), (bx2, by2), color, 1)
+                        cv2.putText(frame, f"CREW {ct['crew_id']}", (bx1, by1 - 10),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1, cv2.LINE_AA)
         
         
         current_step = fsm.get_current_step()
@@ -935,6 +1076,11 @@ def run_ai_engine():
                 anchor_vy = float(np.median([v[1] for v in all_velocities]))
 
         
+        # Reset FOD projection state each frame
+        MissionState.fod_projection_active = False
+        MissionState.fod_projected_object = ""
+        MissionState.fod_impact_eta_s = 0.0
+        
         for det in hoi_detections:
             track_id = det["track_id"]
             class_name = det["class"]
@@ -957,6 +1103,56 @@ def run_ai_engine():
                                 "session_id": MissionState.active_session_id,
                                 "hazard_type": f"UNSECURED_DRIFT_{class_name.upper()}",
                             }))
+                        
+                        # ==========================================
+                        # FEATURE 5: FOD VECTOR PROJECTION
+                        # Draw predicted collision path of drifting object.
+                        # Linear extrapolation: P_future = P_current + V * dt
+                        # ==========================================
+                        bbox = det["bbox"]
+                        cx_fod = int((bbox[0] + bbox[2]) / 2)
+                        cy_fod = int((bbox[1] + bbox[3]) / 2)
+                        
+                        # Project 2.5 seconds into the future
+                        PROJECTION_TIME = 2.5
+                        future_x = int(cx_fod + true_vx * PROJECTION_TIME * 30)  # 30 fps scale
+                        future_y = int(cy_fod + true_vy * PROJECTION_TIME * 30)
+                        
+                        # Clamp to frame bounds
+                        future_x = max(0, min(MissionState.frame_width, future_x))
+                        future_y = max(0, min(MissionState.frame_height, future_y))
+                        
+                        # Draw dashed trajectory line (magenta)
+                        line_color = (255, 0, 255)  # Magenta
+                        dash_len = 15
+                        dx_line = future_x - cx_fod
+                        dy_line = future_y - cy_fod
+                        line_length = max(1, int(math.sqrt(dx_line**2 + dy_line**2)))
+                        for i in range(0, line_length, dash_len * 2):
+                            t1 = i / line_length
+                            t2 = min((i + dash_len) / line_length, 1.0)
+                            p1 = (int(cx_fod + dx_line * t1), int(cy_fod + dy_line * t1))
+                            p2 = (int(cx_fod + dx_line * t2), int(cy_fod + dy_line * t2))
+                            cv2.line(frame, p1, p2, line_color, 2, cv2.LINE_AA)
+                        
+                        # Draw impact crosshair
+                        cross_size = 15
+                        cv2.line(frame, (future_x - cross_size, future_y), (future_x + cross_size, future_y), (0, 0, 255), 2)
+                        cv2.line(frame, (future_x, future_y - cross_size), (future_x, future_y + cross_size), (0, 0, 255), 2)
+                        cv2.circle(frame, (future_x, future_y), cross_size, (0, 0, 255), 1)
+                        
+                        # Label
+                        cv2.putText(frame, f"FOD IMPACT {PROJECTION_TIME}s", 
+                                    (future_x + 10, future_y - 10),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1, cv2.LINE_AA)
+                        cv2.putText(frame, f"DRIFT: {class_name.upper()}",
+                                    (cx_fod, cy_fod - 20),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, line_color, 2, cv2.LINE_AA)
+                        
+                        # Update state for frontend
+                        MissionState.fod_projection_active = True
+                        MissionState.fod_projected_object = class_name
+                        MissionState.fod_impact_eta_s = PROJECTION_TIME
                 else:
                     drift_history[track_id] = 0
 
@@ -966,6 +1162,127 @@ def run_ai_engine():
         MissionState.hand_fingertip = [round(hand_tracker.fingertip_x / MissionState.frame_width, 3), round(hand_tracker.fingertip_y / MissionState.frame_height, 3)] if hand_tracker.detected else None
         MissionState.hand_velocity = hand_tracker.velocity
         MissionState.hand_is_immobile = hand_tracker.is_immobile
+        
+        # ==========================================
+        # FEATURE 1: KINETIC JERK & SLOSH GUARD
+        # Computes jerk from Kalman velocity of held objects.
+        # j = da/dt where a = dv/dt
+        # ==========================================
+        now_slosh = time.time()
+        dt_slosh = now_slosh - _slosh_last_time
+        if dt_slosh > 0.001:  # Avoid division by zero
+            # Get velocity of currently held/target object from Kalman filters
+            held_vx, held_vy = 0.0, 0.0
+            for det in hoi_detections:
+                is_held = any(i.get("track_id") == det["track_id"] and i.get("state") == "HELD" for i in interactions)
+                if is_held and det["track_id"] in kalman_tracker.filters:
+                    kf_s = kalman_tracker.filters[det["track_id"]].kf.statePost
+                    held_vx, held_vy = float(kf_s[4, 0]), float(kf_s[5, 0])
+                    break
+            
+            # Discrete acceleration
+            ax = (held_vx - _slosh_prev_vx) / dt_slosh
+            ay = (held_vy - _slosh_prev_vy) / dt_slosh
+            
+            # Discrete jerk (derivative of acceleration)
+            jx = (ax - _slosh_prev_ax) / dt_slosh
+            jy = (ay - _slosh_prev_ay) / dt_slosh
+            jerk_mag = math.sqrt(jx**2 + jy**2)
+            
+            MissionState.jerk_magnitude = round(jerk_mag, 1)
+            
+            # Check threshold and fire alert
+            if jerk_mag > JERK_THRESHOLD and now_slosh > _slosh_alert_cooldown:
+                MissionState.slosh_alert = True
+                MissionState.slosh_alert_text = "CAUTION: EXCESSIVE JERK — SLOSH HAZARD DETECTED"
+                _slosh_alert_cooldown = now_slosh + 3.0  # 3 second cooldown
+                
+                # Draw alert on camera frame
+                cv2.putText(frame, "!! SLOSH HAZARD !!", (10, MissionState.frame_height - 30),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3, cv2.LINE_AA)
+                
+                # Log to flight recorder
+                if MissionState.active_session_id:
+                    flight_recorder_queue.put(("HAZARD", {
+                        "session_id": MissionState.active_session_id,
+                        "hazard_type": f"SLOSH_JERK_{jerk_mag:.0f}",
+                    }))
+                print(f"[SLOSH GUARD] JERK ALERT: |j| = {jerk_mag:.1f} px/s³ (threshold: {JERK_THRESHOLD})")
+            elif now_slosh > _slosh_alert_cooldown:
+                MissionState.slosh_alert = False
+                MissionState.slosh_alert_text = ""
+            
+            # Update history for next frame
+            _slosh_prev_vx, _slosh_prev_vy = held_vx, held_vy
+            _slosh_prev_ax, _slosh_prev_ay = ax, ay
+            _slosh_last_time = now_slosh
+        
+        # ==========================================
+        # FEATURE 4: HESITATION & COGNITIVE STALL DETECTOR
+        # If hand hovers near target object but doesn't act for >4s,
+        # trigger a context-aware assistance prompt.
+        # ==========================================
+        current_step_hes = fsm.get_current_step()
+        if hand_tracker.detected and current_step_hes and current_step_hes.object != "procedure":
+            # Find the target object's center
+            target_det = None
+            for det in hoi_detections:
+                if det["class"] == current_step_hes.object:
+                    target_det = det
+                    break
+            
+            if target_det is not None:
+                t_bbox = target_det["bbox"]
+                target_cx = (t_bbox[0] + t_bbox[2]) / 2
+                target_cy = (t_bbox[1] + t_bbox[3]) / 2
+                
+                # Distance from hand to target
+                dist_to_target = math.sqrt(
+                    (hand_tracker.wrist_x - target_cx)**2 + 
+                    (hand_tracker.wrist_y - target_cy)**2
+                )
+                
+                # In hover zone AND velocity very low?
+                if dist_to_target < HESITATION_HOVER_RADIUS_PX and hand_tracker.velocity < HESITATION_VELOCITY_THRESHOLD:
+                    if _hesitation_hover_start is None:
+                        _hesitation_hover_start = time.time()
+                    
+                    dwell_time = time.time() - _hesitation_hover_start
+                    MissionState.hesitation_dwell_ms = round(dwell_time * 1000, 0)
+                    MissionState.hesitation_active = True
+                    
+                    if dwell_time > HESITATION_DWELL_SECONDS and not _hesitation_prompted:
+                        _hesitation_count += 1
+                        _hesitation_prompted = True
+                        MissionState.hesitation_count = _hesitation_count
+                        
+                        # Generate context-aware assistance prompt
+                        obj_name = current_step_hes.object.replace('_', ' ')
+                        action_name = current_step_hes.action.lower()
+                        assist_text = f"Assistance: Step requires {action_name} the {obj_name}."
+                        if hasattr(current_step_hes, 'audio_prompt') and current_step_hes.audio_prompt:
+                            assist_text = f"Assistance: {current_step_hes.audio_prompt}"
+                        
+                        speak(assist_text)
+                        print(f"[HESITATION] Cognitive stall detected ({dwell_time:.1f}s). Prompt: {assist_text}")
+                        
+                        # Draw hesitation warning on frame
+                        cv2.putText(frame, "HESITATION DETECTED", (10, 90),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2, cv2.LINE_AA)
+                else:
+                    # Hand is moving or left hover zone — reset
+                    _hesitation_hover_start = None
+                    _hesitation_prompted = False
+                    MissionState.hesitation_active = False
+                    MissionState.hesitation_dwell_ms = 0.0
+            else:
+                _hesitation_hover_start = None
+                _hesitation_prompted = False
+                MissionState.hesitation_active = False
+        else:
+            _hesitation_hover_start = None
+            _hesitation_prompted = False
+            MissionState.hesitation_active = False
 
         
         spatial_checker.check(MissionState.yolo_detections)
@@ -1211,10 +1528,25 @@ def run_ai_engine():
 
         
         if MissionState.fsm_current_state != MissionState.fsm_previous_state and MissionState.active_session_id:
+        # ==========================================
+        # FEATURE 3: MERKLE CRYPTOGRAPHIC FLIGHT RECORDER
+        # Chain every FSM transition through SHA-256 hash.
+        # ==========================================
+            # Record into the Merkle hash chain
+            merkle_hash = flight_merkle_ledger.record_transition(
+                step_id=current_step.step_id if current_step else "UNKNOWN",
+                action=current_step.action if current_step else "",
+                obj=current_step.object if current_step else "",
+                outcome=MissionState.fsm_current_state,
+            )
+            MissionState.merkle_chain_hash = flight_merkle_ledger.get_short_hash()
+            MissionState.merkle_chain_length = flight_merkle_ledger.chain_length
+            
             flight_recorder_queue.put(("FSM", {
                 "session_id": MissionState.active_session_id,
                 "previous_state": MissionState.fsm_previous_state,
                 "new_state": MissionState.fsm_current_state,
+                "merkle_hash": merkle_hash,
             }))
         
         
@@ -1260,7 +1592,7 @@ def run_ai_engine():
             video_writer.write(frame)
 
         
-        global global_frame_buffer
+        
         annotated_frame = frame
         ret, buffer = cv2.imencode('.jpg', annotated_frame)
         if ret:

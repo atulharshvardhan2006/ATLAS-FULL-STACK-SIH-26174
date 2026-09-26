@@ -32,9 +32,10 @@ fi
 echo "🚀 IGNITING CYBER-PHYSICAL PIPELINE..."
 echo "   Using Python: $($PYTHON --version)"
 
-# Nuke ghost ports
+# ─── EXCLUSIVE LOCK: Kill ALL A.T.L.A.S processes ───
 lsof -ti:8000 | xargs kill -9 2>/dev/null
 lsof -ti:5173 | xargs kill -9 2>/dev/null
+lsof -ti:5174 | xargs kill -9 2>/dev/null
 pkill -f "watchdog_runner.py" 2>/dev/null
 sleep 1
 

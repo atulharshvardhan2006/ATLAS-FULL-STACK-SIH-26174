@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from app.core.state import MissionState  
+from app.engines.ccsds_formatter import ccsds_formatter
 
 router = APIRouter()
 
@@ -125,10 +126,68 @@ async def telemetry_stream(websocket: WebSocket, session_id: str):
                     "usb_status": S.usb_status,
                     "logs": list(S.recent_logs),
                 },
+                "crew_safety": {
+                    "active": S.crew_safety_active,
+                    "crew": S.crew_telemetry,
+                },
+                # ─── FEATURE 1: SLOSH GUARD ──────────────────────────────
+                "slosh_guard": {
+                    "jerk_magnitude": round(S.jerk_magnitude, 1),
+                    "alert": S.slosh_alert,
+                    "alert_text": S.slosh_alert_text,
+                },
+                # ─── FEATURE 2: ECO-GOVERNOR ─────────────────────────────
+                "eco_governor": {
+                    "mode": S.eco_governor_mode,
+                    "target_fps": round(S.eco_governor_fps, 1),
+                    "frames_skipped": S.eco_frames_skipped,
+                },
+                # ─── FEATURE 3: MERKLE LEDGER ────────────────────────────
+                "merkle_ledger": {
+                    "chain_hash": S.merkle_chain_hash,
+                    "chain_length": S.merkle_chain_length,
+                },
+                # ─── FEATURE 4: HESITATION DETECTOR ──────────────────────
+                "hesitation": {
+                    "active": S.hesitation_active,
+                    "count": S.hesitation_count,
+                    "dwell_ms": round(S.hesitation_dwell_ms, 0),
+                },
+                # ─── FEATURE 5: FOD VECTOR PROJECTION ────────────────────
+                "fod_projection": {
+                    "active": S.fod_projection_active,
+                    "object": S.fod_projected_object,
+                    "impact_eta_s": round(S.fod_impact_eta_s, 1),
+                },
+                # ─── CCSDS 133.0-B-2 SPACE PACKET TELEMETRY ──────────────────
+                "ccsds": {
+                    "last_hex": S.ccsds_last_hex,
+                    "total_packets": S.ccsds_total_packets,
+                    "total_bytes": S.ccsds_total_bytes,
+                    "last_apid": S.ccsds_last_apid,
+                    "apid_name": S.ccsds_last_apid_name,
+                    "active_apids": S.ccsds_active_apids,
+                },
             }
 
             try:
                 await websocket.send_json(payload)
+                
+                # In background, also pack into binary CCSDS format to prove pipeline capability
+                # We do this asynchronously to avoid blocking the websocket send
+                def pack_ccsds_background(state_snapshot):
+                    ccsds_formatter.pack_full_telemetry_frame(state_snapshot)
+                    stats = ccsds_formatter.get_stats()
+                    state_snapshot.ccsds_last_hex = stats["last_hex"]
+                    state_snapshot.ccsds_total_packets = stats["total_packets"]
+                    state_snapshot.ccsds_total_bytes = stats["total_bytes"]
+                    state_snapshot.ccsds_last_apid = stats["last_apid"]
+                    state_snapshot.ccsds_last_apid_name = stats["apid_name"]
+                    state_snapshot.ccsds_active_apids = stats["active_apids"]
+
+                # Run packing in a thread since struct packing is fast but we want zero event-loop blocking
+                asyncio.create_task(asyncio.to_thread(pack_ccsds_background, S))
+                
             except Exception:
                 break
 
