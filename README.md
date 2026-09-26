@@ -1150,7 +1150,6 @@ Built with open-source technologies:
 
 <br/>
 
-<img src="https://readme-typing-svg.demolab.com?font=Orbitron&weight=700&size=16&duration=4000&pause=2000&color=00D8FF&center=true&vCenter=true&repeat=true&width=600&height=30&lines=Perception+→+Understanding+→+Verification+→+Assistance" alt="Typing SVG" />
 
 <br/>
 <br/>
