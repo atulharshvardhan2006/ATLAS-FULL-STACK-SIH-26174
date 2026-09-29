@@ -1,0 +1,54 @@
+{
+  "id": "pen_and_phone_latest_one_board",
+  "name": "pen and phone latest one board",
+  "version": "1.0-custom",
+  "description": "Custom experiment: pen and phone latest one board",
+  "objects": [
+    "pen_",
+    "phone",
+    "procedure",
+    "hand"
+  ],
+  "steps": [
+    {
+      "step_id": "S02",
+      "action": "DETECT",
+      "object": "phone",
+      "description": "open the phone",
+      "audio_prompt": "work done",
+      "timeout_seconds": 60,
+      "next_step": "S03",
+      "required_evidence": [],
+      "confidence_threshold": 0.5,
+      "recovery_options": [
+        "voice_prompt"
+      ]
+    },
+    {
+      "step_id": "S03",
+      "action": "DETECT",
+      "object": "pen_",
+      "description": "open its lid",
+      "audio_prompt": "work done",
+      "timeout_seconds": 60,
+      "next_step": null,
+      "required_evidence": [],
+      "confidence_threshold": 0.5,
+      "recovery_options": [
+        "voice_prompt"
+      ]
+    },
+    {
+      "step_id": "S04",
+      "action": "COMPLETE",
+      "object": "procedure",
+      "description": "Procedure Complete.",
+      "audio_prompt": "Procedure complete. All steps verified.",
+      "timeout_seconds": 60,
+      "next_step": null,
+      "required_evidence": [],
+      "confidence_threshold": 0.5,
+      "recovery_options": []
+    }
+  ]
+}

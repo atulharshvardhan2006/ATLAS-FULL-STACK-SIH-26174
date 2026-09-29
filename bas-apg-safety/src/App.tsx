@@ -39,7 +39,7 @@ const App: React.FC = () => {
           const data = JSON.parse(event.data)
           const safety: CrewSafety = data.crew_safety
           if (safety && safety.crew) {
-            setCrew(safety.crew)
+            setCrew(safety.crew.slice(0, 3)) // Limit to a maximum of 3 persons at a time
           }
           setFps(data.fps ?? 0)
           setLastUpdate(data.timestamp ?? '')

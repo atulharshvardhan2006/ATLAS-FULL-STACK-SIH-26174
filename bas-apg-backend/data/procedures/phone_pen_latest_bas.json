@@ -1,0 +1,54 @@
+{
+  "id": "phone_pen_latest_bas",
+  "name": "phone pen latest bas",
+  "version": "1.0-custom",
+  "description": "Custom experiment: phone pen latest bas",
+  "objects": [
+    "phone",
+    "pen_",
+    "procedure",
+    "hand"
+  ],
+  "steps": [
+    {
+      "step_id": "S02",
+      "action": "DETECT",
+      "object": "phone",
+      "description": "open phone",
+      "audio_prompt": "work done",
+      "timeout_seconds": 60,
+      "next_step": "S03",
+      "required_evidence": [],
+      "confidence_threshold": 0.5,
+      "recovery_options": [
+        "voice_prompt"
+      ]
+    },
+    {
+      "step_id": "S03",
+      "action": "DETECT",
+      "object": "pen_",
+      "description": "open the lid",
+      "audio_prompt": "work done",
+      "timeout_seconds": 60,
+      "next_step": null,
+      "required_evidence": [],
+      "confidence_threshold": 0.5,
+      "recovery_options": [
+        "voice_prompt"
+      ]
+    },
+    {
+      "step_id": "S04",
+      "action": "COMPLETE",
+      "object": "procedure",
+      "description": "Procedure Complete.",
+      "audio_prompt": "Procedure complete. All steps verified.",
+      "timeout_seconds": 60,
+      "next_step": null,
+      "required_evidence": [],
+      "confidence_threshold": 0.5,
+      "recovery_options": []
+    }
+  ]
+}

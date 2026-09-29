@@ -297,12 +297,12 @@ def detect_open_red_box(frame):
         return False
     for kp_ref, des_ref in open_red_refs:
         matches = bf.match(des_ref, des_frame)
-        good_matches = [m for m in matches if m.distance < 55]
-        if len(good_matches) > 22:
+        good_matches = [m for m in matches if m.distance < 60]
+        if len(good_matches) > 12:
             src_pts = np.float32([kp_ref[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
             dst_pts = np.float32([kp_frame[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
             M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
-            if M is not None and np.sum(mask) > 16:  # strictly requires 10 points in the exact geometric shape!
+            if M is not None and np.sum(mask) >= 10:  # strictly requires 10 points in the exact geometric shape!
                 return True
     return False
 
@@ -348,14 +348,14 @@ def detect_red_box(frame):
     lower_red2 = np.array([170, 130, 50])
     upper_red2 = np.array([180, 255, 255])
     mask = cv2.inRange(hsv, lower_red1, upper_red1) + cv2.inRange(hsv, lower_red2, upper_red2)
-    return cv2.countNonZero(mask) > 25000
+    return cv2.countNonZero(mask) > 5000
 
 def detect_yellow_box(frame):
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     lower_yellow = np.array([20, 130, 50])
     upper_yellow = np.array([35, 255, 255])
     mask = cv2.inRange(hsv, lower_yellow, upper_yellow)
-    return cv2.countNonZero(mask) > 25000
+    return cv2.countNonZero(mask) > 5000
 
 # ==========================================
 # DYNAMIC OBJECT REGISTRY
